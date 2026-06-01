@@ -254,8 +254,8 @@ proxyServer.on('connect', (req, clientSocket, head) => {
             serverSocket.pipe(clientSocket);
         });
 
-        const cacheEntry = authCache.get(clientIp);
-        const userId = cacheEntry && cacheEntry.user ? cacheEntry.user.id : null;
+        const user = db.getUserByIp(clientIp);
+        const userId = user ? user.id : null;
 
         let bytesTransferred = 0;
         serverSocket.on('data', (chunk) => bytesTransferred += chunk.length);
@@ -266,6 +266,11 @@ proxyServer.on('connect', (req, clientSocket, head) => {
                 const today = db.getLocalDateString();
                 db.updateUsage(userId, today, bytesTransferred);
                 bytesTransferred = 0;
+
+                if (!isAllowed(clientIp)) {
+                    clientSocket.end();
+                    if (serverSocket) serverSocket.end();
+                }
             }
         };
 
@@ -345,8 +350,8 @@ const socksServer = net.createServer((clientSocket) => {
                     serverSocket.pipe(clientSocket);
                 });
 
-                const cacheEntry = authCache.get(clientIp);
-                const userId = cacheEntry && cacheEntry.user ? cacheEntry.user.id : null;
+                const user = db.getUserByIp(clientIp);
+                const userId = user ? user.id : null;
 
                 let bytesTransferred = 0;
                 serverSocket.on('data', (chunk) => bytesTransferred += chunk.length);
@@ -357,6 +362,11 @@ const socksServer = net.createServer((clientSocket) => {
                         const today = db.getLocalDateString();
                         db.updateUsage(userId, today, bytesTransferred);
                         bytesTransferred = 0;
+
+                        if (!isAllowed(clientIp)) {
+                            clientSocket.end();
+                            if (serverSocket) serverSocket.end();
+                        }
                     }
                 };
 
