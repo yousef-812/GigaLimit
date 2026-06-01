@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giga Limit Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: rgba(30, 41, 59, 0.7);
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .glass {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+        }
+
+        #login-view, #dashboard-view {
+            display: none;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #login-view.active, #dashboard-view.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-box {
+            max-width: 400px;
+            margin: 10vh auto;
+            padding: 2.5rem;
+            text-align: center;
+        }
+
+        .login-box h1 {
+            margin-top: 0;
+            font-size: 2rem;
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            margin: 8px 0;
+            box-sizing: border-box;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: white;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+
+        .settings-panel {
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .settings-panel h3 {
+            margin: 0;
+            width: 100%;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .user-card {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-blocked { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .status-unlimited { background: rgba(167, 139, 250, 0.2); color: #a78bfa; }
+
+        .usage-bar-bg {
+            background: rgba(0,0,0,0.3);
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .usage-bar-fill {
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .user-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .card-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn-small {
+            padding: 8px;
+            font-size: 0.875rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-small:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
+
+        .btn-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+        .btn-success:hover { background: rgba(16, 185, 129, 0.2); }
+
+        .limit-input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .limit-input-group input {
+            margin: 0;
+            padding: 6px;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-view" class="active">
+        <div class="login-box glass">
+            <h1>Giga Limit</h1>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">Local Admin Gateway</p>
+            <input type="password" id="password" placeholder="Admin Password" onkeypress="if(event.key === 'Enter') login()">
+            <button onclick="login()">Access Control Panel</button>
+            <p id="login-error" style="color: var(--danger); display: none; margin-top: 1rem; font-size: 0.875rem;">Invalid password</p>
+        </div>
+    </div>
+
+    <div id="dashboard-view">
+        <div class="header">
+            <h1>Control Panel</h1>
+            <button style="width: auto; padding: 8px 16px; background: transparent; border: 1px solid var(--border);" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="settings-panel glass">
+            <h3>Global Default Limit (For new devices)</h3>
+            <div class="limit-input-group" style="width: 250px;">
+                <input type="number" id="global-limit" placeholder="MB">
+                <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px;">Save</button>
+            </div>
+            <span id="global-msg" style="color: var(--success); font-size: 0.875rem; display: none;">Saved!</span>
+        </div>
+        
+        <h2 style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem;">Connected Devices</h2>
+        <div class="card-grid" id="users-grid">
+            <!-- Cards populated by JS -->
+        </div>
+    </div>
+
+    <script>
+        let authToken = localStorage.getItem('giga_token');
+
+        if(authToken) {
+            showDashboard();
+        }
+
+        async function login() {
+            const pwd = document.getElementById('password').value;
+            const res = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pwd })
+            });
+            
+            if(res.ok) {
+                const data = await res.json();
+                authToken = data.token;
+                localStorage.setItem('giga_token', authToken);
+                document.getElementById('password').value = '';
+                document.getElementById('login-error').style.display = 'none';
+                showDashboard();
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('giga_token');
+            authToken = null;
+            document.getElementById('dashboard-view').classList.remove('active');
+            document.getElementById('login-view').classList.add('active');
+        }
+
+        function showDashboard() {
+            document.getElementById('login-view').classList.remove('active');
+            document.getElementById('dashboard-view').classList.add('active');
+            loadGlobalLimit();
+            loadUsers();
+            setInterval(loadUsers, 5000); // refresh every 5s
+        }
+
+        async function loadGlobalLimit() {
+            if(!authToken) return;
+            const res = await fetch('/api/admin/global_settings', { headers: { 'Authorization': authToken } });
+            const data = await res.json();
+            document.getElementById('global-limit').value = data.global_limit;
+        }
+
+        async function updateGlobalLimit() {
+            const val = document.getElementById('global-limit').value;
+            await fetch('/api/admin/global_settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                body: JSON.stringify({ global_limit: val })
+            });
+            const msg = document.getElementById('global-msg');
+            msg.style.display = 'inline';
+            setTimeout(() => msg.style.display = 'none', 2000);
+        }
+
+        async function loadUsers() {
+            if(!authToken) return;
+            try {
+                const res = await fetch('/api/admin/users?t=' + Date.now(), { headers: { 'Authorization': authToken } });
+                if(res.status === 401) return logout();
+                const users = await res.json();
+                renderUsers(users);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderUsers(users) {
+            const grid = document.getElementById('users-grid');
+            
+            if(users.length === 0) {
+                grid.innerHTML = '<p style="color: var(--text-muted);">No devices connected yet.</p>';
+                return;
+            }
+
+            // We update existing DOM elements instead of full innerHTML replace to prevent input loss during 5s refresh
+            users.forEach(u => {
+                const usageMB = Math.round(u.bytes_used / (1024 * 1024)); 
+                const weeklyUsageMB = Math.round((u.weekly_bytes_used || 0) / (1024 * 1024));
+                const weeklyLimit = u.weekly_limit_mb || (u.daily_limit_mb * 7);
+                const pct = u.status === 'unlimited' ? 0 : Math.min(100, (usageMB / u.daily_limit_mb) * 100);
+                const wPct = u.status === 'unlimited' ? 0 : Math.min(100, (weeklyUsageMB / weeklyLimit) * 100);
+                
+                let card = document.getElementById(`user-card-${u.id}`);
+                if (!card) {
+                    card = document.createElement('div');
+                    card.id = `user-card-${u.id}`;
+                    card.className = 'user-card glass';
+                    grid.appendChild(card);
+                }
+
+                const limitInput = card.querySelector(`#limit-${u.id}`);
+                const wLimitInput = card.querySelector(`#wlimit-${u.id}`);
+                const isFocused = (limitInput && limitInput === document.activeElement) || (wLimitInput && wLimitInput === document.activeElement);
+                const currentInputValue = (limitInput && isFocused) ? limitInput.value : u.daily_limit_mb;
+                const currentWInputValue = (wLimitInput && isFocused) ? wLimitInput.value : weeklyLimit;
+
+                card.innerHTML = `
+                    <div class="user-header">
+                        <h3 class="user-name">${u.name}</h3>
+                        <span class="status-badge status-${u.status}">${u.status}</span>
+                    </div>
+                    <div>
+                        <div class="user-stats">
+                            <span>Daily Usage</span>
+                            <span>${u.status === 'unlimited' ? usageMB + ' MB' : usageMB + ' / ' + u.daily_limit_mb + ' MB'}</span>
+                        </div>
+                        <div class="usage-bar-bg" ${u.status === 'unlimited' ? 'style="display:none;"' : ''}>
+                            <div class="usage-bar-fill" style="width: ${pct}%; ${pct >= 100 ? 'background:var(--danger);' : ''}"></div>
+                        </div>
+                        
+                        <div class="user-stats" style="margin-top: 8px;">
+                            <span>Weekly Usage</span>
+                            <span>${u.status === 'unlimited' ? weeklyUsageMB + ' MB' : weeklyUsageMB + ' / ' + weeklyLimit + ' MB'}</span>
+                        </div>
+                        <div class="usage-bar-bg" ${u.status === 'unlimited' ? 'style="display:none;"' : ''}>
+                            <div class="usage-bar-fill" style="width: ${wPct}%; ${wPct >= 100 ? 'background:var(--danger);' : 'background: linear-gradient(90deg, #a78bfa, #c084fc);'}"></div>
+                        </div>
+                    </div>
+                    <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
+                        <div style="display:flex; gap: 0.5rem;">
+                            <input type="number" id="limit-${u.id}" value="${currentInputValue}" placeholder="Daily Limit MB">
+                            <input type="number" id="wlimit-${u.id}" value="${currentWInputValue}" placeholder="Weekly Limit MB">
+                        </div>
+                        <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">Save Limits</button>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn-small" onclick="renewUser(${u.id})">Renew / Reset</button>
+                        <button class="btn-small" onclick="updateUser(${u.id}, '${u.status === 'unlimited' ? 'active' : 'unlimited'}', ${u.daily_limit_mb})">
+                            ${u.status === 'unlimited' ? 'Disable Unlimited' : 'Unlimited Mode'}
+                        </button>
+                        <button class="btn-small ${u.status !== 'blocked' ? 'btn-danger' : 'btn-success'}" style="grid-column: span 2;"
+                                onclick="updateUser(${u.id}, '${u.status === 'blocked' ? 'active' : 'blocked'}', ${u.daily_limit_mb})">
+                            ${u.status === 'blocked' ? 'Unblock Internet' : 'Block Internet'}
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        async function updateUser(id, status, daily_limit, weekly_limit) {
+            await fetch('/api/admin/update_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                body: JSON.stringify({ id, status, daily_limit_mb: daily_limit, weekly_limit_mb: weekly_limit })
+            });
+            loadUsers();
+        }
+
+        async function renewUser(id) {
+            await fetch('/api/admin/renew_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                body: JSON.stringify({ id })
+            });
+            loadUsers();
+        }
+    </script>
+</body>
+</html>

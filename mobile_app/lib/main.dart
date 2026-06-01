@@ -1,0 +1,294 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+
+void main() {
+  runApp(const GigaLimitApp());
+}
+
+class GigaLimitApp extends StatelessWidget {
+  const GigaLimitApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Giga Limit',
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        primaryColor: const Color(0xFF3B82F6),
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        fontFamily: 'Roboto',
+      ),
+      home: const BootScreen(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class BootScreen extends StatefulWidget {
+  const BootScreen({super.key});
+
+  @override
+  State<BootScreen> createState() => _BootScreenState();
+}
+
+class _BootScreenState extends State<BootScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkRegistration();
+  }
+
+  Future<void> _checkRegistration() async {
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString('device_id');
+    
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (!mounted) return;
+    if (deviceId != null && deviceId.isNotEmpty) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+    } else {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RegistrationScreen()));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
+    );
+  }
+}
+
+class RegistrationScreen extends StatefulWidget {
+  const RegistrationScreen({super.key});
+
+  @override
+  State<RegistrationScreen> createState() => _RegistrationScreenState();
+}
+
+class _RegistrationScreenState extends State<RegistrationScreen> {
+  final _nameController = TextEditingController();
+  final _ipController = TextEditingController();
+  bool _isLoading = false;
+
+  // Generate a random device ID for testing
+  String _generateDeviceId() {
+    return 'dev_${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  Future<void> _register() async {
+    if (_nameController.text.isEmpty || _ipController.text.isEmpty) return;
+    setState(() => _isLoading = true);
+    
+    final deviceId = _generateDeviceId();
+    final serverIp = _ipController.text.trim();
+    
+    try {
+      final res = await http.post(
+        Uri.parse('http://$serverIp:3000/api/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'device_id': deviceId, 'name': _nameController.text}),
+      );
+
+      if (res.statusCode == 200) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_name', _nameController.text);
+        await prefs.setString('device_id', deviceId);
+        await prefs.setString('server_ip', serverIp);
+        
+        if (!mounted) return;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+      } else {
+        _showError('Registration failed: ${res.body}');
+      }
+    } catch (e) {
+      _showError('Could not connect to server at $serverIp');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(Icons.wifi_lock, size: 80, color: Color(0xFF3B82F6)),
+              const SizedBox(height: 32),
+              const Text('Welcome to Giga Limit', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _nameController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Your Name', filled: true, fillColor: Color(0xFF1E293B)),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _ipController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Laptop Server IP (e.g. 192.168.1.5)', filled: true, fillColor: Color(0xFF1E293B)),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _register,
+                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Connect & Authenticate'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  String userName = "User";
+  String serverIp = "";
+  String deviceId = "";
+  Map<String, dynamic> stats = {
+    'usage_today_bytes': 0,
+    'weekly_usage_bytes': 0,
+    'daily_remaining_bytes': 1024 * 1024 * 1024,
+    'weekly_limit_bytes': 7168 * 1024 * 1024,
+    'user': {'daily_limit_mb': 1024, 'weekly_limit_mb': 7168, 'status': 'active'}
+  };
+  bool canConnect = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userName = prefs.getString('user_name') ?? 'User';
+      serverIp = prefs.getString('server_ip') ?? '';
+      deviceId = prefs.getString('device_id') ?? '';
+    });
+    _fetchStats();
+  }
+
+  Future<void> _fetchStats() async {
+    if (serverIp.isEmpty) return;
+    try {
+      final res = await http.get(Uri.parse('http://$serverIp:3000/api/status/$deviceId'));
+      if (res.statusCode == 200) {
+        setState(() {
+          final data = jsonDecode(res.body);
+          stats = data;
+          canConnect = data['can_connect'];
+        });
+      }
+    } catch (e) {
+      print('Error fetching stats');
+    }
+    Future.delayed(const Duration(seconds: 5), _fetchStats); // Auto refresh
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final usedMB = (stats['usage_today_bytes'] / (1024 * 1024)).round();
+    final limitMB = stats['user']['daily_limit_mb'];
+    final wUsedMB = ((stats['weekly_usage_bytes'] ?? 0) / (1024 * 1024)).round();
+    final wLimitMB = stats['user']['weekly_limit_mb'] ?? (limitMB * 7);
+    
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Hello, $userName', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                      Row(
+                        children: [
+                          Icon(canConnect ? Icons.check_circle : Icons.error, color: canConnect ? Colors.green : Colors.red, size: 16),
+                          const SizedBox(width: 8),
+                          Text(canConnect ? 'Internet Access Active' : 'Internet Blocked', style: TextStyle(color: canConnect ? Colors.green : Colors.red)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                children: [
+                  _buildQuotaCard('Daily Quota', usedMB, limitMB, const Color(0xFF3B82F6)),
+                  const SizedBox(height: 16),
+                  _buildQuotaCard('Weekly Quota', wUsedMB, wLimitMB, const Color(0xFFA855F7)),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.settings),
+                    label: const Text('Auto-Configure Wi-Fi'),
+                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16), backgroundColor: const Color(0xFF1E293B)),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          backgroundColor: const Color(0xFF1E293B),
+                          title: const Text('Security Restriction'),
+                          content: const Text('Android OS blocks apps from automatically changing Wi-Fi Proxy settings to protect user security.\\n\\nYou must open your Wi-Fi settings manually and set the proxy to:\\nIP: 192.168.100.84\\nPort: 8080'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
+                          ]
+                        )
+                      );
+                    },
+                  ),
+                ],
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuotaCard(String title, int usedMB, int totalMB, Color color) {
+    double percent = totalMB > 0 ? usedMB / totalMB : 0;
+    
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        children: [
+          Text(title, style: const TextStyle(fontSize: 18, color: Colors.white)),
+          const SizedBox(height: 24),
+          CircularProgressIndicator(value: percent, strokeWidth: 12, color: color),
+          const SizedBox(height: 24),
+          Text('$usedMB MB / $totalMB MB Used', style: const TextStyle(color: Colors.white, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+}
