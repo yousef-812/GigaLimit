@@ -1,0 +1,21 @@
+workflows:
+  ios-workflow:
+    name: iOS Build Workflow
+    instance_type: mac_mini_m2
+    working_directory: mobile_app
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get dependencies
+        script: |
+          flutter pub get
+      - name: Build iOS unsigned IPA
+        script: |
+          flutter build ios --release --no-codesign
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r -X GigaLimit_iOS.ipa Payload
+    artifacts:
+      - mobile_app/GigaLimit_iOS.ipa
