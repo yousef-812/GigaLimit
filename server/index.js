@@ -51,7 +51,7 @@ app.post('/api/ping', (req, res) => {
 app.get('/api/status/:device_id', (req, res) => {
     const device_id = req.params.device_id;
     const ip = getCleanIp(req);
-    const today = new Date().toISOString().split('T')[0];
+    const today = db.getLocalDateString();
     
     const user = db.getUserByDeviceId(device_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -91,7 +91,7 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 app.get('/api/admin/users', adminAuth, (req, res) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = db.getLocalDateString();
     res.json(db.getUsersWithUsage(today));
 });
 
@@ -106,7 +106,7 @@ app.post('/api/admin/update_user', adminAuth, (req, res) => {
 
 app.post('/api/admin/renew_user', adminAuth, (req, res) => {
     const { id } = req.body;
-    const today = new Date().toISOString().split('T')[0];
+    const today = db.getLocalDateString();
     db.resetUsage(id, today);
     res.json({ success: true });
 });
@@ -114,7 +114,8 @@ app.post('/api/admin/renew_user', adminAuth, (req, res) => {
 app.get('/api/admin/global_settings', adminAuth, (req, res) => {
     res.json({ 
         global_limit: db.getSetting('global_daily_limit_mb'),
-        global_weekly_limit: db.getSetting('global_weekly_limit_mb') || (db.getSetting('global_daily_limit_mb') * 7)
+        global_weekly_limit: db.getSetting('global_weekly_limit_mb') || (db.getSetting('global_daily_limit_mb') * 7),
+        global_total_bytes: db.getGlobalTotal()
     });
 });
 
@@ -127,6 +128,11 @@ app.post('/api/admin/global_settings', adminAuth, (req, res) => {
 app.post('/api/admin/reset_user', adminAuth, (req, res) => {
     const { id } = req.body;
     db.resetUserToDefault(id);
+    res.json({ success: true });
+});
+
+app.post('/api/admin/reset_global_total', adminAuth, (req, res) => {
+    db.resetGlobalTotal();
     res.json({ success: true });
 });
 
@@ -173,7 +179,7 @@ const isAllowed = (ip) => {
         return authCache.get(ip).allowed;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = db.getLocalDateString();
     const user = db.getUserByIp(ip);
     
     if (!user || user.status === 'blocked') {
@@ -229,7 +235,7 @@ proxyServer.on('connect', (req, clientSocket, head) => {
 
     const saveStats = () => {
         if (bytesTransferred > 0 && userId) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = db.getLocalDateString();
             db.updateUsage(userId, today, bytesTransferred);
             bytesTransferred = 0;
         }

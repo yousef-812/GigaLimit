@@ -257,6 +257,14 @@
             <button style="width: auto; padding: 8px 16px; background: transparent; border: 1px solid var(--border);" onclick="logout()">Logout</button>
         </div>
 
+        <div class="settings-panel glass" style="justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h3 style="color: var(--text-muted); font-size: 1rem; margin-bottom: 0.5rem;">Total Network Usage (All Time)</h3>
+                <p id="global-total-usage" style="font-size: 2rem; font-weight: 800; margin: 0; color: var(--primary);">0 MB</p>
+            </div>
+            <button class="btn-small btn-danger" style="width: auto;" onclick="resetGlobalTotal()">Reset / Start Over</button>
+        </div>
+
         <div class="settings-panel glass">
             <h3>Global Default Limit (For new devices)</h3>
             <div class="limit-input-group" style="width: 100%; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
@@ -321,6 +329,12 @@
             const data = await res.json();
             document.getElementById('global-limit').value = data.global_limit;
             document.getElementById('global-weekly-limit').value = data.global_weekly_limit;
+            
+            // Format global total
+            let totalBytes = data.global_total_bytes || 0;
+            let mb = totalBytes / (1024 * 1024);
+            let displayStr = mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb.toFixed(2) + ' MB';
+            document.getElementById('global-total-usage').innerText = displayStr;
         }
 
         async function updateGlobalLimit() {
@@ -447,6 +461,16 @@
                 body: JSON.stringify({ id })
             });
             loadUsers();
+        }
+
+        async function resetGlobalTotal() {
+            if (confirm("Are you sure you want to reset the entire network's total usage back to 0? This cannot be undone.")) {
+                await fetch('/api/admin/reset_global_total', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': authToken }
+                });
+                loadGlobalLimit();
+            }
         }
     </script>
 </body>

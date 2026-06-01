@@ -18,10 +18,21 @@ if (fs.existsSync(dbPath)) {
     try {
         const fileData = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
         data = { ...data, ...fileData };
+        if (data.settings && data.settings.global_total_bytes_used === undefined) {
+            data.settings.global_total_bytes_used = 0;
+        }
     } catch (e) {
         console.error('Error reading db file, starting fresh.');
     }
 }
+
+const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 const save = () => {
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
@@ -50,7 +61,7 @@ module.exports = {
                     daily_limit_mb: default_limit,
                     weekly_limit_mb: default_limit * 7,
                     status: 'active',
-                    registered_at: new Date().toISOString()
+                    registered_at: getLocalDateString()
                 };
                 data.users.push(user);
             }
@@ -86,16 +97,23 @@ module.exports = {
         } else {
             data.usage.push({ user_id, date, bytes_used: bytes });
         }
+        if (data.settings.global_total_bytes_used === undefined) data.settings.global_total_bytes_used = 0;
+        data.settings.global_total_bytes_used += bytes;
         save();
     },
 
     getWeeklyUsage: (user_id) => {
-        const today = new Date();
+        const todayStr = getLocalDateString();
+        const parts = todayStr.split('-');
+        const today = new Date(parts[0], parts[1] - 1, parts[2]);
+        const day = today.getDay(); // 0 = Sun, 6 = Sat
+        const daysSinceSaturday = (day + 1) % 7; 
+        
         let total = 0;
-        for (let i = 0; i < 7; i++) {
+        for (let i = 0; i <= daysSinceSaturday; i++) {
             const d = new Date(today);
             d.setDate(d.getDate() - i);
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             let usage = data.usage.find(u => u.user_id === user_id && u.date === dateStr);
             if (usage) total += usage.bytes_used;
         }
@@ -159,5 +177,14 @@ module.exports = {
             return true;
         }
         return false;
+    },
+
+    getLocalDateString,
+    
+    getGlobalTotal: () => data.settings.global_total_bytes_used || 0,
+    
+    resetGlobalTotal: () => {
+        data.settings.global_total_bytes_used = 0;
+        save();
     }
 };
