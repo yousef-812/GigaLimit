@@ -113,9 +113,11 @@ app.post('/api/admin/renew_user', adminAuth, (req, res) => {
 
 app.get('/api/admin/global_settings', adminAuth, (req, res) => {
     res.json({ 
-        global_limit: db.getSetting('global_daily_limit_mb'),
-        global_weekly_limit: db.getSetting('global_weekly_limit_mb') || (db.getSetting('global_daily_limit_mb') * 7),
-        global_total_bytes: db.getGlobalTotal()
+        global_limit: db.getSetting('global_daily_limit_mb') || 1024,
+        global_weekly_limit: db.getSetting('global_weekly_limit_mb') || 7000,
+        global_total_bytes: db.getSetting('global_total_bytes_used') || 0,
+        server_date: db.getLocalDateString(),
+        server_time: new Date().toLocaleTimeString()
     });
 });
 

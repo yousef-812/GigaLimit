@@ -252,8 +252,11 @@
     </div>
 
     <div id="dashboard-view">
-        <div class="header">
-            <h1>Control Panel</h1>
+        <div class="header" style="flex-wrap: wrap;">
+            <div>
+                <h1>Control Panel</h1>
+                <p id="server-time-display" style="color: var(--text-muted); margin-top: 4px; font-size: 0.875rem;">Server Date: Loading...</p>
+            </div>
             <button style="width: auto; padding: 8px 16px; background: transparent; border: 1px solid var(--border);" onclick="logout()">Logout</button>
         </div>
 
@@ -335,6 +338,7 @@
             let mb = totalBytes / (1024 * 1024);
             let displayStr = mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb.toFixed(2) + ' MB';
             document.getElementById('global-total-usage').innerText = displayStr;
+            document.getElementById('server-time-display').innerText = `Server Date: ${data.server_date} | Time: ${data.server_time}`;
         }
 
         async function updateGlobalLimit() {
