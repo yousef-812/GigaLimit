@@ -276,17 +276,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildQuotaCard(String title, int usedMB, int totalMB, Color color) {
     double percent = totalMB > 0 ? usedMB / totalMB : 0;
+    if (percent > 1.0) percent = 1.0;
     
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B), 
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          )
+        ]
+      ),
       child: Column(
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, color: Colors.white)),
-          const SizedBox(height: 24),
-          CircularProgressIndicator(value: percent, strokeWidth: 12, color: color),
-          const SizedBox(height: 24),
-          Text('$usedMB MB / $totalMB MB Used', style: const TextStyle(color: Colors.white, fontSize: 16)),
+          Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: 200,
+            height: 200,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CircularProgressIndicator(
+                  value: percent,
+                  strokeWidth: 20,
+                  backgroundColor: color.withOpacity(0.1),
+                  color: color,
+                ),
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${(totalMB - usedMB > 0) ? (totalMB - usedMB) : 0}',
+                        style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: color),
+                      ),
+                      const Text('MB Left', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text('$usedMB MB / $totalMB MB Used', style: const TextStyle(color: Colors.white, fontSize: 18)),
         ],
       ),
     );
