@@ -239,8 +239,9 @@ proxyServer.on('connect', (req, clientSocket, head) => {
     if (clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
 
     if (!isAllowed(clientIp)) {
-        clientSocket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        clientSocket.destroy();
+        // BLACKHOLE STRATEGY: Do not destroy the socket immediately.
+        // We hold the connection hostage so the phone hangs and doesn't fallback to 4G.
+        // The phone will wait forever until it times out naturally.
         return;
     }
 
@@ -268,8 +269,10 @@ proxyServer.on('connect', (req, clientSocket, head) => {
                 bytesTransferred = 0;
             }
             if (!isAllowed(clientIp)) {
-                clientSocket.destroy();
-                if (serverSocket) serverSocket.destroy();
+                // If they run out of quota mid-stream, we pause the stream instead of killing it.
+                // clientSocket.pause() stops reading data from the client, effectively freezing it.
+                clientSocket.pause();
+                if (serverSocket) serverSocket.pause();
             }
         };
 
@@ -306,7 +309,8 @@ const socksServer = net.createServer((clientSocket) => {
     if (clientIp && clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
 
     if (!isAllowed(clientIp)) {
-        clientSocket.destroy();
+        // BLACKHOLE STRATEGY for SOCKS5
+        // Do not respond to the handshake. The phone will hang.
         return;
     }
 
@@ -363,8 +367,9 @@ const socksServer = net.createServer((clientSocket) => {
                         bytesTransferred = 0;
                     }
                     if (!isAllowed(clientIp)) {
-                        clientSocket.destroy();
-                        if (serverSocket) serverSocket.destroy();
+                        // Freeze the stream mid-connection
+                        clientSocket.pause();
+                        if (serverSocket) serverSocket.pause();
                     }
                 };
 
