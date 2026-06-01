@@ -53,8 +53,9 @@ module.exports = {
                 if (name) existingIpUser.name = name;
                 user = existingIpUser;
             } else {
+                const maxId = data.users.reduce((max, u) => Math.max(max, u.id), 0);
                 user = {
-                    id: data.users.length + 1,
+                    id: maxId + 1,
                     name,
                     device_id,
                     current_ip: ip,

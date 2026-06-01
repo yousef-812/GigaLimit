@@ -243,7 +243,7 @@ proxyServer.on('connect', (req, clientSocket, head) => {
     if (!isAllowed(clientIp)) {
         console.log('[HTTP] Connection rejected for IP:', clientIp);
         clientSocket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        clientSocket.end();
+        clientSocket.destroy();
         return;
     }
     console.log('[HTTP] Connection allowed for IP:', clientIp);
@@ -275,8 +275,8 @@ proxyServer.on('connect', (req, clientSocket, head) => {
             }
             if (!isAllowed(clientIp)) {
                 console.log(`[HTTP] Dropping connection for ${clientIp}`);
-                clientSocket.end();
-                if (serverSocket) serverSocket.end();
+                clientSocket.destroy();
+                if (serverSocket) serverSocket.destroy();
             }
         };
 
@@ -289,13 +289,13 @@ proxyServer.on('connect', (req, clientSocket, head) => {
 
         serverSocket.on('end', onEnd);
         clientSocket.on('end', onEnd);
-        serverSocket.on('error', () => clientSocket.end());
+        serverSocket.on('error', () => clientSocket.destroy());
         clientSocket.on('error', () => {
-            if (serverSocket) serverSocket.end();
+            if (serverSocket) serverSocket.destroy();
         });
     } catch (err) {
         console.error('Invalid Connect Request:', err.message);
-        clientSocket.end();
+        clientSocket.destroy();
     }
 });
 
@@ -316,7 +316,7 @@ const socksServer = net.createServer((clientSocket) => {
 
     if (!isAllowed(clientIp)) {
         console.log('[SOCKS] Connection rejected for IP:', clientIp);
-        clientSocket.end();
+        clientSocket.destroy();
         return;
     }
     console.log('[SOCKS] Connection allowed for IP:', clientIp);
@@ -377,8 +377,8 @@ const socksServer = net.createServer((clientSocket) => {
                     }
                     if (!isAllowed(clientIp)) {
                         console.log(`[SOCKS] Dropping connection for ${clientIp}`);
-                        clientSocket.end();
-                        if (serverSocket) serverSocket.end();
+                        clientSocket.destroy();
+                        if (serverSocket) serverSocket.destroy();
                     }
                 };
 
