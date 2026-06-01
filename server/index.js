@@ -295,3 +295,92 @@ app.listen(API_PORT, '0.0.0.0', () => {
 proxyServer.listen(PROXY_PORT, '0.0.0.0', () => {
     console.log(`Giga Limit Proxy Engine running on port ${PROXY_PORT}`);
 });
+
+// --- SOCKS5 ENGINE ---
+const socksServer = net.createServer((clientSocket) => {
+    let clientIp = clientSocket.remoteAddress;
+    if (clientIp && clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
+
+    if (!isAllowed(clientIp)) {
+        clientSocket.end();
+        return;
+    }
+
+    clientSocket.once('data', (data) => {
+        if (data[0] !== 0x05) {
+            clientSocket.end();
+            return;
+        }
+        clientSocket.write(Buffer.from([0x05, 0x00])); // No auth
+
+        clientSocket.once('data', (reqData) => {
+            if (reqData[0] !== 0x05 || reqData[1] !== 0x01) {
+                clientSocket.end();
+                return;
+            }
+
+            const atyp = reqData[3];
+            let host;
+            let portOffset;
+
+            if (atyp === 0x01) {
+                host = `${reqData[4]}.${reqData[5]}.${reqData[6]}.${reqData[7]}`;
+                portOffset = 8;
+            } else if (atyp === 0x03) {
+                const domainLen = reqData[4];
+                host = reqData.toString('utf8', 5, 5 + domainLen);
+                portOffset = 5 + domainLen;
+            } else {
+                clientSocket.end();
+                return;
+            }
+
+            const port = reqData.readUInt16BE(portOffset);
+
+            try {
+                const serverSocket = net.connect(port, host, () => {
+                    const reply = Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+                    clientSocket.write(reply);
+                    clientSocket.pipe(serverSocket);
+                    serverSocket.pipe(clientSocket);
+                });
+
+                const cacheEntry = authCache.get(clientIp);
+                const userId = cacheEntry && cacheEntry.user ? cacheEntry.user.id : null;
+
+                let bytesTransferred = 0;
+                serverSocket.on('data', (chunk) => bytesTransferred += chunk.length);
+                clientSocket.on('data', (chunk) => bytesTransferred += chunk.length);
+
+                const saveStats = () => {
+                    if (bytesTransferred > 0 && userId) {
+                        const today = db.getLocalDateString();
+                        db.updateUsage(userId, today, bytesTransferred);
+                        bytesTransferred = 0;
+                    }
+                };
+
+                const interval = setInterval(saveStats, 5000);
+
+                const onEnd = () => {
+                    clearInterval(interval);
+                    saveStats();
+                };
+
+                serverSocket.on('end', onEnd);
+                clientSocket.on('end', onEnd);
+                serverSocket.on('error', () => clientSocket.end());
+                clientSocket.on('error', () => {
+                    if (serverSocket) serverSocket.end();
+                });
+            } catch (err) {
+                console.error('Invalid SOCKS5 Request:', err.message);
+                clientSocket.end();
+            }
+        });
+    });
+});
+
+socksServer.listen(1080, '0.0.0.0', () => {
+    console.log(`Giga Limit SOCKS5 Engine running on port 1080`);
+});
