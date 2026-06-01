@@ -151,6 +151,13 @@ const proxyServer = http.createServer((req, res) => {
     if (clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
 
     const parsedUrl = url.parse(req.url);
+    
+    if (!parsedUrl.hostname) {
+        res.writeHead(400);
+        res.end('Direct access not allowed. Please use port 3000 to access the Control Panel or Web App.');
+        return;
+    }
+
     const isLocal = parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === 'localhost' || (parsedUrl.hostname && parsedUrl.hostname.startsWith('192.168.'));
 
     if (!isLocal && !isAllowed(clientIp)) {
