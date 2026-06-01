@@ -33,22 +33,30 @@ save();
 module.exports = {
     getSetting: (key) => data.settings[key],
     
-    registerUser: (name, device_id, current_ip, daily_limit_mb) => {
+    registerUser: (name, device_id, ip, default_limit) => {
         let user = data.users.find(u => u.device_id === device_id);
-        if (user) {
-            user.name = name;
-            user.current_ip = current_ip;
+        if (!user) {
+            let existingIpUser = data.users.find(u => u.current_ip === ip);
+            if (existingIpUser) {
+                existingIpUser.device_id = device_id;
+                if (name) existingIpUser.name = name;
+                user = existingIpUser;
+            } else {
+                user = {
+                    id: data.users.length + 1,
+                    name,
+                    device_id,
+                    current_ip: ip,
+                    daily_limit_mb: default_limit,
+                    weekly_limit_mb: default_limit * 7,
+                    status: 'active',
+                    registered_at: new Date().toISOString()
+                };
+                data.users.push(user);
+            }
         } else {
-            user = {
-                id: data.users.length + 1,
-                name,
-                device_id,
-                current_ip,
-                status: 'active',
-                daily_limit_mb,
-                weekly_limit_mb: daily_limit_mb * 7
-            };
-            data.users.push(user);
+            user.current_ip = ip;
+            if (name) user.name = name;
         }
         save();
         return user;

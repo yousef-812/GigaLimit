@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Giga Limit</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --primary: #3b82f6;
+            --purple: #a855f7;
+            --text-light: #f8fafc;
+            --text-dim: #94a3b8;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-dark); color: var(--text-light); }
+        .container { padding: 24px; max-width: 500px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+        
+        /* Registration Screen */
+        #register-screen { display: none; flex-direction: column; justify-content: center; height: 100vh; text-align: center; }
+        .logo-circle { width: 100px; height: 100px; background: linear-gradient(135deg, var(--primary), var(--purple)); border-radius: 50%; margin: 0 auto 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(59, 130, 246, 0.4); }
+        .logo-circle svg { width: 50px; height: 50px; fill: white; }
+        input { background: var(--card-bg); border: 1px solid #334155; color: white; padding: 16px; border-radius: 12px; font-size: 16px; width: 100%; margin-bottom: 24px; outline: none; transition: border 0.3s; }
+        input:focus { border-color: var(--primary); }
+        button { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); transition: transform 0.2s; }
+        button:active { transform: scale(0.98); }
+        
+        /* Dashboard Screen */
+        #dashboard-screen { display: none; flex: 1; padding-bottom: 40px; }
+        .header { margin-bottom: 32px; }
+        .status-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: 600; margin-top: 12px; }
+        .status-badge.active { background: rgba(34, 197, 94, 0.1); color: var(--success); }
+        .status-badge.blocked { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+        
+        .card { background: var(--card-bg); border-radius: 24px; padding: 24px; margin-bottom: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); text-align: center; }
+        .card h3 { color: var(--text-light); margin-bottom: 32px; font-size: 20px; }
+        
+        .progress-circle { position: relative; width: 220px; height: 220px; margin: 0 auto 32px; border-radius: 50%; }
+        .progress-circle svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .progress-circle circle { fill: none; stroke-width: 16; stroke-linecap: round; }
+        .bg-circle { stroke: rgba(255,255,255,0.05); }
+        .fg-circle { stroke-dasharray: 628; stroke-dashoffset: 628; transition: stroke-dashoffset 1s ease-out; }
+        .fg-daily { stroke: var(--primary); filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6)); }
+        .fg-weekly { stroke: var(--purple); filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.6)); }
+        
+        .circle-content { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .circle-content .value { font-size: 42px; font-weight: 700; }
+        .circle-content .label { font-size: 16px; color: var(--text-dim); }
+        .daily-val { color: var(--primary); }
+        .weekly-val { color: var(--purple); }
+        
+        .usage-text { font-size: 18px; color: var(--text-light); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- REGISTRATION SCREEN -->
+    <div id="register-screen">
+        <div class="logo-circle">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        </div>
+        <h1 style="margin-bottom: 8px;">Giga Limit</h1>
+        <p style="color: var(--text-dim); margin-bottom: 32px;">Register your device to access internet.</p>
+        <input type="text" id="reg-name" placeholder="Enter your name (e.g. Yousef iPhone)" autocomplete="off">
+        <button onclick="register()">Connect Device</button>
+    </div>
+
+    <!-- DASHBOARD SCREEN -->
+    <div id="dashboard-screen">
+        <div class="header">
+            <h1 id="user-name">Hello, User</h1>
+            <div id="status-badge" class="status-badge active">
+                <span id="status-icon">●</span> <span id="status-text">Internet Active</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Daily Quota</h3>
+            <div class="progress-circle">
+                <svg viewBox="0 0 220 220">
+                    <circle class="bg-circle" cx="110" cy="110" r="100"></circle>
+                    <circle class="fg-circle fg-daily" id="daily-ring" cx="110" cy="110" r="100"></circle>
+                </svg>
+                <div class="circle-content">
+                    <div class="value daily-val" id="daily-left">0</div>
+                    <div class="label">MB Left</div>
+                </div>
+            </div>
+            <div class="usage-text" id="daily-usage-text">0 MB / 0 MB Used</div>
+        </div>
+
+        <div class="card">
+            <h3>Weekly Quota</h3>
+            <div class="progress-circle">
+                <svg viewBox="0 0 220 220">
+                    <circle class="bg-circle" cx="110" cy="110" r="100"></circle>
+                    <circle class="fg-circle fg-weekly" id="weekly-ring" cx="110" cy="110" r="100"></circle>
+                </svg>
+                <div class="circle-content">
+                    <div class="value weekly-val" id="weekly-left">0</div>
+                    <div class="label">MB Left</div>
+                </div>
+            </div>
+            <div class="usage-text" id="weekly-usage-text">0 MB / 0 MB Used</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const deviceId = localStorage.getItem('gl_device_id');
+    const userName = localStorage.getItem('gl_name');
+
+    if (!deviceId) {
+        document.getElementById('register-screen').style.display = 'flex';
+    } else {
+        document.getElementById('dashboard-screen').style.display = 'block';
+        document.getElementById('user-name').innerText = `Hello, ${userName}`;
+        fetchStatus();
+        setInterval(fetchStatus, 3000);
+    }
+
+    async function register() {
+        const name = document.getElementById('reg-name').value.trim();
+        if (!name) return alert('Please enter a name');
+        
+        const newDeviceId = 'web_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+        
+        try {
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ device_id: newDeviceId, name })
+            });
+            const data = await res.json();
+            if (data.success) {
+                localStorage.setItem('gl_device_id', newDeviceId);
+                localStorage.setItem('gl_name', name);
+                location.reload();
+            }
+        } catch (e) {
+            alert('Connection failed. Make sure proxy is set and you are on the correct network.');
+        }
+    }
+
+    async function fetchStatus() {
+        try {
+            const res = await fetch(`/api/status/${deviceId}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            
+            updateUI(data);
+        } catch (e) {}
+    }
+
+    function updateUI(data) {
+        // Status Badge
+        const badge = document.getElementById('status-badge');
+        if (data.can_connect) {
+            badge.className = 'status-badge active';
+            document.getElementById('status-text').innerText = 'Internet Access Active';
+        } else {
+            badge.className = 'status-badge blocked';
+            document.getElementById('status-text').innerText = 'Internet Blocked';
+        }
+
+        // Daily
+        const dailyUsed = Math.round(data.usage_today_bytes / (1024 * 1024));
+        const dailyLimit = data.user.daily_limit_mb;
+        const dailyLeft = Math.max(0, dailyLimit - dailyUsed);
+        let dailyPct = dailyLimit > 0 ? dailyUsed / dailyLimit : 0;
+        if (dailyPct > 1) dailyPct = 1;
+        
+        document.getElementById('daily-left').innerText = dailyLeft;
+        document.getElementById('daily-usage-text').innerText = `${dailyUsed} MB / ${dailyLimit} MB Used`;
+        document.getElementById('daily-ring').style.strokeDashoffset = 628 - (628 * dailyPct);
+
+        // Weekly
+        const weeklyUsed = Math.round((data.weekly_usage_bytes || 0) / (1024 * 1024));
+        const weeklyLimit = data.user.weekly_limit_mb || (dailyLimit * 7);
+        const weeklyLeft = Math.max(0, weeklyLimit - weeklyUsed);
+        let weeklyPct = weeklyLimit > 0 ? weeklyUsed / weeklyLimit : 0;
+        if (weeklyPct > 1) weeklyPct = 1;
+
+        document.getElementById('weekly-left').innerText = weeklyLeft;
+        document.getElementById('weekly-usage-text').innerText = `${weeklyUsed} MB / ${weeklyLimit} MB Used`;
+        document.getElementById('weekly-ring').style.strokeDashoffset = 628 - (628 * weeklyPct);
+    }
+</script>
+
+</body>
+</html>
