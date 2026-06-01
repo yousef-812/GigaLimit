@@ -50,10 +50,17 @@ app.post('/api/ping', (req, res) => {
 
 app.get('/api/status/:device_id', (req, res) => {
     const device_id = req.params.device_id;
+    const ip = getCleanIp(req);
     const today = new Date().toISOString().split('T')[0];
     
     const user = db.getUserByDeviceId(device_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Auto-update IP if the device changed networks (e.g. from Main Router to Access Point)
+    if (user.current_ip !== ip) {
+        db.updateUserIp(device_id, ip);
+        user.current_ip = ip;
+    }
     
     const bytes_used = db.getUsage(user.id, today);
     const weekly_bytes_used = db.getWeeklyUsage(user.id);
