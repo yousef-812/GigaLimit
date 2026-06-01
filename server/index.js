@@ -136,6 +136,15 @@ app.post('/api/admin/reset_global_total', adminAuth, (req, res) => {
     res.json({ success: true });
 });
 
+app.post('/api/admin/delete_user', adminAuth, (req, res) => {
+    const { id } = req.body;
+    if (db.deleteUser(id)) {
+        res.json({ success: true });
+    } else {
+        res.status(400).json({ error: 'User not found' });
+    }
+});
+
 // --- PROXY ENGINE ---
 const proxyServer = http.createServer((req, res) => {
     let clientIp = req.socket.remoteAddress;

@@ -186,5 +186,16 @@ module.exports = {
     resetGlobalTotal: () => {
         data.settings.global_total_bytes_used = 0;
         save();
+    },
+
+    deleteUser: (id) => {
+        const initialLength = data.users.length;
+        data.users = data.users.filter(u => u.id !== parseInt(id));
+        data.usage = data.usage.filter(u => u.user_id !== parseInt(id));
+        if (data.users.length < initialLength) {
+            save();
+            return true;
+        }
+        return false;
     }
 };

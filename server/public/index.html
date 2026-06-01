@@ -431,6 +431,9 @@
                                 onclick="updateUser(${u.id}, '${u.status === 'blocked' ? 'active' : 'blocked'}', ${u.daily_limit_mb}, ${weeklyLimit})">
                             ${u.status === 'blocked' ? 'Unblock Internet' : 'Block Internet'}
                         </button>
+                        <button class="btn-small btn-danger" style="grid-column: span 2; margin-top: 0.5rem;" onclick="deleteUser(${u.id})">
+                            Delete Device 🗑️
+                        </button>
                     </div>
                 `;
             });
@@ -470,6 +473,19 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': authToken }
                 });
                 loadGlobalLimit();
+            }
+        }
+
+        async function deleteUser(id) {
+            if (confirm("Are you sure you want to permanently delete this device?")) {
+                await fetch('/api/admin/delete_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                    body: JSON.stringify({ id })
+                });
+                const card = document.getElementById(`user-card-${id}`);
+                if (card) card.remove();
+                loadUsers();
             }
         }
     </script>
