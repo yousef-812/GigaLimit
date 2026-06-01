@@ -236,17 +236,13 @@ const isAllowed = (ip) => {
 
 proxyServer.on('connect', (req, clientSocket, head) => {
     let clientIp = req.socket.remoteAddress;
-    console.log('[HTTP] CONNECT from raw IP:', clientIp);
     if (clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
-    console.log('[HTTP] CONNECT parsed IP:', clientIp);
 
     if (!isAllowed(clientIp)) {
-        console.log('[HTTP] Connection rejected for IP:', clientIp);
         clientSocket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         clientSocket.destroy();
         return;
     }
-    console.log('[HTTP] Connection allowed for IP:', clientIp);
 
     const { port, hostname } = url.parse(`http://${req.url}`);
     
@@ -266,15 +262,12 @@ proxyServer.on('connect', (req, clientSocket, head) => {
         clientSocket.on('data', (chunk) => bytesTransferred += chunk.length);
 
         const saveStats = () => {
-            console.log(`[HTTP] saveStats run for IP: ${clientIp}, bytes: ${bytesTransferred}, userId: ${userId}`);
             if (bytesTransferred > 0 && userId) {
                 const today = db.getLocalDateString();
                 db.updateUsage(userId, today, bytesTransferred);
-                console.log(`[HTTP] Updated usage for user ${userId}, added ${bytesTransferred} bytes`);
                 bytesTransferred = 0;
             }
             if (!isAllowed(clientIp)) {
-                console.log(`[HTTP] Dropping connection for ${clientIp}`);
                 clientSocket.destroy();
                 if (serverSocket) serverSocket.destroy();
             }
@@ -310,16 +303,12 @@ proxyServer.listen(PROXY_PORT, '0.0.0.0', () => {
 // --- SOCKS5 ENGINE ---
 const socksServer = net.createServer((clientSocket) => {
     let clientIp = clientSocket.remoteAddress;
-    console.log('[SOCKS] CONNECT from raw IP:', clientIp);
     if (clientIp && clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
-    console.log('[SOCKS] CONNECT parsed IP:', clientIp);
 
     if (!isAllowed(clientIp)) {
-        console.log('[SOCKS] Connection rejected for IP:', clientIp);
         clientSocket.destroy();
         return;
     }
-    console.log('[SOCKS] Connection allowed for IP:', clientIp);
 
     clientSocket.once('data', (data) => {
         if (data[0] !== 0x05) {
@@ -368,15 +357,12 @@ const socksServer = net.createServer((clientSocket) => {
                 clientSocket.on('data', (chunk) => bytesTransferred += chunk.length);
 
                 const saveStats = () => {
-                    console.log(`[SOCKS] saveStats run for IP: ${clientIp}, bytes: ${bytesTransferred}, userId: ${userId}`);
                     if (bytesTransferred > 0 && userId) {
                         const today = db.getLocalDateString();
                         db.updateUsage(userId, today, bytesTransferred);
-                        console.log(`[SOCKS] Updated usage for user ${userId}, added ${bytesTransferred} bytes`);
                         bytesTransferred = 0;
                     }
                     if (!isAllowed(clientIp)) {
-                        console.log(`[SOCKS] Dropping connection for ${clientIp}`);
                         clientSocket.destroy();
                         if (serverSocket) serverSocket.destroy();
                     }
