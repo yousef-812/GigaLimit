@@ -132,8 +132,37 @@ app.post('/api/admin/reset_user', adminAuth, (req, res) => {
 
 // --- PROXY ENGINE ---
 const proxyServer = http.createServer((req, res) => {
-    res.writeHead(403);
-    res.end('Use HTTPS connect');
+    let clientIp = req.socket.remoteAddress;
+    if (clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
+
+    const parsedUrl = url.parse(req.url);
+    const isLocal = parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === 'localhost' || (parsedUrl.hostname && parsedUrl.hostname.startsWith('192.168.'));
+
+    if (!isLocal && !isAllowed(clientIp)) {
+        res.writeHead(403);
+        res.end('Forbidden: Not Registered or Quota Exceeded');
+        return;
+    }
+
+    const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || 80,
+        path: parsedUrl.path,
+        method: req.method,
+        headers: { ...req.headers, 'x-forwarded-for': clientIp }
+    };
+
+    const proxyReq = http.request(options, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', (e) => {
+        res.writeHead(502);
+        res.end('Bad Gateway');
+    });
+
+    req.pipe(proxyReq);
 });
 
 const authCache = new Map();
