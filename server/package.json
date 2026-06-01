@@ -12,7 +12,9 @@
   "bin": "index.js",
   "pkg": {
     "assets": [
-      "public/**/*"
+      "public/**/*",
+      "public/app.html",
+      "public/index.html"
     ]
   },
   "type": "commonjs",

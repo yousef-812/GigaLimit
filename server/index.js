@@ -14,6 +14,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/app.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 const getCleanIp = (req) => {
     let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     if (ip.includes('::ffff:')) ip = ip.split('::ffff:')[1];
