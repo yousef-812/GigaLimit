@@ -105,12 +105,21 @@ app.post('/api/admin/renew_user', adminAuth, (req, res) => {
 });
 
 app.get('/api/admin/global_settings', adminAuth, (req, res) => {
-    res.json({ global_limit: db.getSetting('global_daily_limit_mb') });
+    res.json({ 
+        global_limit: db.getSetting('global_daily_limit_mb'),
+        global_weekly_limit: db.getSetting('global_weekly_limit_mb') || (db.getSetting('global_daily_limit_mb') * 7)
+    });
 });
 
 app.post('/api/admin/global_settings', adminAuth, (req, res) => {
-    const { global_limit } = req.body;
-    db.updateGlobalLimit(global_limit);
+    const { global_limit, global_weekly_limit } = req.body;
+    db.updateGlobalLimit(global_limit, global_weekly_limit);
+    res.json({ success: true });
+});
+
+app.post('/api/admin/reset_user', adminAuth, (req, res) => {
+    const { id } = req.body;
+    db.resetUserToDefault(id);
     res.json({ success: true });
 });
 

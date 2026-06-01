@@ -133,8 +133,31 @@ module.exports = {
         }
     },
 
-    updateGlobalLimit: (limit) => {
-        data.settings.global_daily_limit_mb = parseInt(limit);
+    updateGlobalLimit: (daily_limit, weekly_limit) => {
+        const old_daily = data.settings.global_daily_limit_mb;
+        const old_weekly = data.settings.global_weekly_limit_mb || (old_daily * 7);
+        
+        data.settings.global_daily_limit_mb = parseInt(daily_limit);
+        data.settings.global_weekly_limit_mb = parseInt(weekly_limit);
+
+        // Apply to users who hadn't been manually customized
+        data.users.forEach(u => {
+            if (u.daily_limit_mb === old_daily && (u.weekly_limit_mb === old_weekly || !u.weekly_limit_mb)) {
+                u.daily_limit_mb = data.settings.global_daily_limit_mb;
+                u.weekly_limit_mb = data.settings.global_weekly_limit_mb;
+            }
+        });
         save();
+    },
+
+    resetUserToDefault: (id) => {
+        let user = data.users.find(u => u.id === parseInt(id));
+        if (user) {
+            user.daily_limit_mb = data.settings.global_daily_limit_mb;
+            user.weekly_limit_mb = data.settings.global_weekly_limit_mb || (data.settings.global_daily_limit_mb * 7);
+            save();
+            return true;
+        }
+        return false;
     }
 };

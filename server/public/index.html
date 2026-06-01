@@ -259,11 +259,12 @@
 
         <div class="settings-panel glass">
             <h3>Global Default Limit (For new devices)</h3>
-            <div class="limit-input-group" style="width: 250px;">
-                <input type="number" id="global-limit" placeholder="MB">
-                <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px;">Save</button>
+            <div class="limit-input-group" style="width: 100%; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <input type="number" id="global-limit" placeholder="Daily Limit (MB)" style="width: 150px;">
+                <input type="number" id="global-weekly-limit" placeholder="Weekly Limit (MB)" style="width: 150px;">
+                <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px; background: var(--primary);">Save</button>
+                <span id="global-msg" style="color: var(--success); font-size: 0.875rem; display: none;">Saved!</span>
             </div>
-            <span id="global-msg" style="color: var(--success); font-size: 0.875rem; display: none;">Saved!</span>
         </div>
         
         <h2 style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem;">Connected Devices</h2>
@@ -273,7 +274,7 @@
     </div>
 
     <script>
-        let authToken = localStorage.getItem('giga_token');
+        let authToken = sessionStorage.getItem('giga_token');
 
         if(authToken) {
             showDashboard();
@@ -290,7 +291,7 @@
             if(res.ok) {
                 const data = await res.json();
                 authToken = data.token;
-                localStorage.setItem('giga_token', authToken);
+                sessionStorage.setItem('giga_token', authToken);
                 document.getElementById('password').value = '';
                 document.getElementById('login-error').style.display = 'none';
                 showDashboard();
@@ -300,7 +301,7 @@
         }
 
         function logout() {
-            localStorage.removeItem('giga_token');
+            sessionStorage.removeItem('giga_token');
             authToken = null;
             document.getElementById('dashboard-view').classList.remove('active');
             document.getElementById('login-view').classList.add('active');
@@ -319,14 +320,16 @@
             const res = await fetch('/api/admin/global_settings', { headers: { 'Authorization': authToken } });
             const data = await res.json();
             document.getElementById('global-limit').value = data.global_limit;
+            document.getElementById('global-weekly-limit').value = data.global_weekly_limit;
         }
 
         async function updateGlobalLimit() {
             const val = document.getElementById('global-limit').value;
+            const wVal = document.getElementById('global-weekly-limit').value;
             await fetch('/api/admin/global_settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
-                body: JSON.stringify({ global_limit: val })
+                body: JSON.stringify({ global_limit: val, global_weekly_limit: wVal })
             });
             const msg = document.getElementById('global-msg');
             msg.style.display = 'inline';
@@ -405,12 +408,13 @@
                         <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">Save Limits</button>
                     </div>
                     <div class="card-actions">
-                        <button class="btn-small" onclick="renewUser(${u.id})">Renew / Reset</button>
-                        <button class="btn-small" onclick="updateUser(${u.id}, '${u.status === 'unlimited' ? 'active' : 'unlimited'}', ${u.daily_limit_mb})">
+                        <button class="btn-small" onclick="renewUser(${u.id})">Renew Quota</button>
+                        <button class="btn-small" style="color: var(--primary);" onclick="resetToDefault(${u.id})">Reset to Default</button>
+                        <button class="btn-small" onclick="updateUser(${u.id}, '${u.status === 'unlimited' ? 'active' : 'unlimited'}', ${u.daily_limit_mb}, ${weeklyLimit})">
                             ${u.status === 'unlimited' ? 'Disable Unlimited' : 'Unlimited Mode'}
                         </button>
-                        <button class="btn-small ${u.status !== 'blocked' ? 'btn-danger' : 'btn-success'}" style="grid-column: span 2;"
-                                onclick="updateUser(${u.id}, '${u.status === 'blocked' ? 'active' : 'blocked'}', ${u.daily_limit_mb})">
+                        <button class="btn-small ${u.status !== 'blocked' ? 'btn-danger' : 'btn-success'}"
+                                onclick="updateUser(${u.id}, '${u.status === 'blocked' ? 'active' : 'blocked'}', ${u.daily_limit_mb}, ${weeklyLimit})">
                             ${u.status === 'blocked' ? 'Unblock Internet' : 'Block Internet'}
                         </button>
                     </div>
@@ -429,6 +433,15 @@
 
         async function renewUser(id) {
             await fetch('/api/admin/renew_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                body: JSON.stringify({ id })
+            });
+            loadUsers();
+        }
+
+        async function resetToDefault(id) {
+            await fetch('/api/admin/reset_user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
                 body: JSON.stringify({ id })
