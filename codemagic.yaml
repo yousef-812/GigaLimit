@@ -18,4 +18,4 @@ workflows:
           mv build/ios/iphoneos/Runner.app Payload/
           zip -r -X GigaLimit_iOS.ipa Payload
     artifacts:
-      - mobile_app/GigaLimit_iOS.ipa
+      - "**/*.ipa"
