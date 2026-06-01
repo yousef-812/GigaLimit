@@ -294,11 +294,11 @@ proxyServer.on('connect', (req, clientSocket, head) => {
 });
 
 app.listen(API_PORT, '0.0.0.0', () => {
-    console.log(`Giga Limit API running on port ${API_PORT}`);
+    console.log(`Giga Limit API v3 running on port ${API_PORT}`);
 });
 
 proxyServer.listen(PROXY_PORT, '0.0.0.0', () => {
-    console.log(`Giga Limit Proxy Engine running on port ${PROXY_PORT}`);
+    console.log(`Giga Limit Proxy Engine v3 running on port ${PROXY_PORT}`);
 });
 
 // --- SOCKS5 ENGINE ---
@@ -362,11 +362,10 @@ const socksServer = net.createServer((clientSocket) => {
                         const today = db.getLocalDateString();
                         db.updateUsage(userId, today, bytesTransferred);
                         bytesTransferred = 0;
-
-                        if (!isAllowed(clientIp)) {
-                            clientSocket.end();
-                            if (serverSocket) serverSocket.end();
-                        }
+                    }
+                    if (!isAllowed(clientIp)) {
+                        clientSocket.end();
+                        if (serverSocket) serverSocket.end();
                     }
                 };
 
