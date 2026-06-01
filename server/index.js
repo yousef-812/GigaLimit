@@ -174,17 +174,27 @@ const proxyServer = http.createServer((req, res) => {
         headers: { ...req.headers, 'x-forwarded-for': clientIp }
     };
 
-    const proxyReq = http.request(options, (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
-        proxyRes.pipe(res);
-    });
+    try {
+        const proxyReq = http.request(options, (proxyRes) => {
+            res.writeHead(proxyRes.statusCode, proxyRes.headers);
+            proxyRes.pipe(res);
+        });
 
-    proxyReq.on('error', (e) => {
-        res.writeHead(502);
-        res.end('Bad Gateway');
-    });
+        proxyReq.on('error', (e) => {
+            if (!res.headersSent) {
+                res.writeHead(502);
+                res.end('Bad Gateway');
+            }
+        });
 
-    req.pipe(proxyReq);
+        req.pipe(proxyReq);
+    } catch (err) {
+        console.error('Invalid Proxy Request:', err.message);
+        if (!res.headersSent) {
+            res.writeHead(400);
+            res.end('Bad Request');
+        }
+    }
 });
 
 const authCache = new Map();
@@ -235,39 +245,47 @@ proxyServer.on('connect', (req, clientSocket, head) => {
     }
 
     const { port, hostname } = url.parse(`http://${req.url}`);
-    const serverSocket = net.connect(port || 443, hostname, () => {
-        clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
-        serverSocket.write(head);
-        clientSocket.pipe(serverSocket);
-        serverSocket.pipe(clientSocket);
-    });
+    
+    try {
+        const serverSocket = net.connect(port || 443, hostname, () => {
+            clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+            serverSocket.write(head);
+            clientSocket.pipe(serverSocket);
+            serverSocket.pipe(clientSocket);
+        });
 
-    const cacheEntry = authCache.get(clientIp);
-    const userId = cacheEntry && cacheEntry.user ? cacheEntry.user.id : null;
+        const cacheEntry = authCache.get(clientIp);
+        const userId = cacheEntry && cacheEntry.user ? cacheEntry.user.id : null;
 
-    let bytesTransferred = 0;
-    serverSocket.on('data', (chunk) => bytesTransferred += chunk.length);
-    clientSocket.on('data', (chunk) => bytesTransferred += chunk.length);
+        let bytesTransferred = 0;
+        serverSocket.on('data', (chunk) => bytesTransferred += chunk.length);
+        clientSocket.on('data', (chunk) => bytesTransferred += chunk.length);
 
-    const saveStats = () => {
-        if (bytesTransferred > 0 && userId) {
-            const today = db.getLocalDateString();
-            db.updateUsage(userId, today, bytesTransferred);
-            bytesTransferred = 0;
-        }
-    };
+        const saveStats = () => {
+            if (bytesTransferred > 0 && userId) {
+                const today = db.getLocalDateString();
+                db.updateUsage(userId, today, bytesTransferred);
+                bytesTransferred = 0;
+            }
+        };
 
-    const interval = setInterval(saveStats, 5000);
+        const interval = setInterval(saveStats, 5000);
 
-    const onEnd = () => {
-        clearInterval(interval);
-        saveStats();
-    };
+        const onEnd = () => {
+            clearInterval(interval);
+            saveStats();
+        };
 
-    serverSocket.on('end', onEnd);
-    clientSocket.on('end', onEnd);
-    serverSocket.on('error', () => clientSocket.end());
-    clientSocket.on('error', () => serverSocket.end());
+        serverSocket.on('end', onEnd);
+        clientSocket.on('end', onEnd);
+        serverSocket.on('error', () => clientSocket.end());
+        clientSocket.on('error', () => {
+            if (serverSocket) serverSocket.end();
+        });
+    } catch (err) {
+        console.error('Invalid Connect Request:', err.message);
+        clientSocket.end();
+    }
 });
 
 app.listen(API_PORT, '0.0.0.0', () => {
