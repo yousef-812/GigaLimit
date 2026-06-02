@@ -104,6 +104,15 @@ app.post('/api/admin/update_user', adminAuth, (req, res) => {
     }
 });
 
+app.post('/api/admin/set_usage', adminAuth, (req, res) => {
+    const { id, daily_bytes, weekly_bytes } = req.body;
+    if (db.setUsageDirectly(id, daily_bytes, weekly_bytes)) {
+        res.json({ success: true });
+    } else {
+        res.status(400).json({ error: 'User not found' });
+    }
+});
+
 app.post('/api/admin/renew_daily', adminAuth, (req, res) => {
     const { id } = req.body;
     const today = db.getLocalDateString();

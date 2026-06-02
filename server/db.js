@@ -118,7 +118,9 @@ module.exports = {
             let usage = data.usage.find(u => u.user_id === user_id && u.date === dateStr);
             if (usage) total += usage.bytes_used;
         }
-        return total;
+        let user = data.users.find(u => u.id === user_id);
+        if (user && user.weekly_offset) total += user.weekly_offset;
+        return Math.max(0, total);
     },
 
     getUsersWithUsage: (date) => {
@@ -142,6 +144,25 @@ module.exports = {
             return true;
         }
         return false;
+    },
+
+    setUsageDirectly: (id, daily_bytes, weekly_bytes) => {
+        const today = getLocalDateString();
+        let user = data.users.find(u => u.id === parseInt(id));
+        if (!user) return false;
+
+        let usage = data.usage.find(u => u.user_id === parseInt(id) && u.date === today);
+        if (usage) {
+            usage.bytes_used = parseInt(daily_bytes);
+        } else {
+            data.usage.push({ user_id: parseInt(id), date: today, bytes_used: parseInt(daily_bytes) });
+        }
+
+        // Calculate current natural weekly usage (without offset)
+        let naturalWeekly = module.exports.getWeeklyUsage(parseInt(id)) - (user.weekly_offset || 0);
+        user.weekly_offset = parseInt(weekly_bytes) - naturalWeekly;
+        save();
+        return true;
     },
 
     resetUsage: (user_id, date) => {

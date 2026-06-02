@@ -259,7 +259,7 @@
                 <h1>Control Panel</h1>
                 <p id="server-time-display" style="color: var(--text-muted); margin-top: 4px; font-size: 0.875rem;">Server Date: Loading...</p>
             </div>
-            <button style="width: auto; padding: 8px 16px; background: transparent; border: 1px solid var(--border);" onclick="logout()">Logout</button>
+            <button style="width: auto; padding: 8px 16px; background: transparent; border: 1px solid var(--border); color: var(--text);" onclick="logout()">Logout</button>
         </div>
 
         <div class="settings-panel glass" style="justify-content: space-between; align-items: flex-start;">
@@ -275,12 +275,12 @@
             <div class="limit-input-group" style="width: 100%; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                 <input type="number" id="global-limit" placeholder="Daily Limit (MB)" style="width: 150px;">
                 <input type="number" id="global-weekly-limit" placeholder="Weekly Limit (MB)" style="width: 150px;">
-                <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px; background: var(--primary);">Save</button>
+                <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px; background: var(--primary); color: var(--bg);">Save</button>
                 <span id="global-msg" style="color: var(--success); font-size: 0.875rem; display: none;">Saved!</span>
             </div>
         </div>
         
-        <h2 style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem;">Connected Devices</h2>
+        <h2 id="connected-devices-header" onclick="handleSecretClick()" style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem; cursor: pointer; user-select: none;">Connected Devices</h2>
         <div class="card-grid" id="users-grid">
             <!-- Cards populated by JS -->
         </div>
@@ -288,6 +288,29 @@
 
     <script>
         let authToken = sessionStorage.getItem('giga_token');
+        let secretClicks = 0;
+        let secretMode = false;
+        let secretTimeout;
+
+        function handleSecretClick() {
+            secretClicks++;
+            if (secretClicks >= 10 && !secretMode) {
+                secretMode = true;
+                alert("God Mode Enabled: Sliders Unlocked!");
+                loadUsers();
+            }
+            clearTimeout(secretTimeout);
+            secretTimeout = setTimeout(() => { secretClicks = 0; }, 2000);
+        }
+
+        async function updateUsageSecret(id, daily_bytes, weekly_bytes) {
+            await fetch('/api/admin/set_usage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                body: JSON.stringify({ id, daily_bytes, weekly_bytes })
+            });
+            loadUsers();
+        }
 
         if(authToken) {
             showDashboard();
@@ -384,6 +407,23 @@
                 const pct = u.status === 'unlimited' ? 0 : Math.min(100, (usageMB / u.daily_limit_mb) * 100);
                 const wPct = u.status === 'unlimited' ? 0 : Math.min(100, (weeklyUsageMB / weeklyLimit) * 100);
                 
+                const maxDaily = u.daily_limit_mb * 1024 * 1024;
+                const maxWeekly = weeklyLimit * 1024 * 1024;
+
+                let dailyBarHTML = '';
+                let weeklyBarHTML = '';
+
+                if (u.status === 'unlimited') {
+                    dailyBarHTML = '<div class="usage-bar-bg" style="display:none;"></div>';
+                    weeklyBarHTML = '<div class="usage-bar-bg" style="display:none;"></div>';
+                } else if (secretMode) {
+                    dailyBarHTML = `<input type="range" style="width:100%; margin:8px 0; accent-color: var(--primary);" min="0" max="${maxDaily}" value="${u.bytes_used}" onchange="updateUsageSecret(${u.id}, this.value, ${u.weekly_bytes_used || 0})">`;
+                    weeklyBarHTML = `<input type="range" style="width:100%; margin:8px 0; accent-color: #a78bfa;" min="0" max="${maxWeekly}" value="${u.weekly_bytes_used || 0}" onchange="updateUsageSecret(${u.id}, ${u.bytes_used}, this.value)">`;
+                } else {
+                    dailyBarHTML = `<div class="usage-bar-bg"><div class="usage-bar-fill" style="width: ${pct}%; ${pct >= 100 ? 'background:var(--danger);' : ''}"></div></div>`;
+                    weeklyBarHTML = `<div class="usage-bar-bg"><div class="usage-bar-fill" style="width: ${wPct}%; ${wPct >= 100 ? 'background:var(--danger);' : 'background: linear-gradient(90deg, #a78bfa, #c084fc);'}"></div></div>`;
+                }
+                
                 let card = document.getElementById(`user-card-${u.id}`);
                 if (!card) {
                     card = document.createElement('div');
@@ -408,17 +448,13 @@
                             <span>Daily Usage</span>
                             <span>${u.status === 'unlimited' ? usageMB + ' MB' : usageMB + ' / ' + u.daily_limit_mb + ' MB'}</span>
                         </div>
-                        <div class="usage-bar-bg" ${u.status === 'unlimited' ? 'style="display:none;"' : ''}>
-                            <div class="usage-bar-fill" style="width: ${pct}%; ${pct >= 100 ? 'background:var(--danger);' : ''}"></div>
-                        </div>
+                        ${dailyBarHTML}
                         
                         <div class="user-stats" style="margin-top: 8px;">
                             <span>Weekly Usage</span>
                             <span>${u.status === 'unlimited' ? weeklyUsageMB + ' MB' : weeklyUsageMB + ' / ' + weeklyLimit + ' MB'}</span>
                         </div>
-                        <div class="usage-bar-bg" ${u.status === 'unlimited' ? 'style="display:none;"' : ''}>
-                            <div class="usage-bar-fill" style="width: ${wPct}%; ${wPct >= 100 ? 'background:var(--danger);' : 'background: linear-gradient(90deg, #a78bfa, #c084fc);'}"></div>
-                        </div>
+                        ${weeklyBarHTML}
                     </div>
                     <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
                         <div style="display:flex; gap: 0.5rem;">
