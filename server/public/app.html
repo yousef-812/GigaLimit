@@ -212,6 +212,15 @@
             if (!res.ok) return;
             const data = await res.json();
             
+            if (data.pending_notification) {
+                sendNotification('رسالة من الإدارة 📩', data.pending_notification);
+                fetch('/api/clear_notification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId })
+                });
+            }
+
             updateUI(data);
         } catch (e) {}
     }
