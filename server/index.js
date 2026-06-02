@@ -303,9 +303,22 @@ proxyServer.on('connect', (req, clientSocket, head) => {
     }
 });
 
-app.listen(API_PORT, '0.0.0.0', () => {
-    console.log(`Giga Limit API v3 running on port ${API_PORT}`);
-});
+try {
+    const fs = require('fs');
+    const https = require('https');
+    const sslOptions = {
+        key: fs.readFileSync(path.join(__dirname, 'server.key')),
+        cert: fs.readFileSync(path.join(__dirname, 'server.cert'))
+    };
+    https.createServer(sslOptions, app).listen(API_PORT, '0.0.0.0', () => {
+        console.log(`Giga Limit API running securely on HTTPS port ${API_PORT}`);
+    });
+} catch (e) {
+    console.log('SSL certs not found, falling back to HTTP');
+    app.listen(API_PORT, '0.0.0.0', () => {
+        console.log(`Giga Limit API running on port ${API_PORT}`);
+    });
+}
 
 proxyServer.listen(PROXY_PORT, '0.0.0.0', () => {
     console.log(`Giga Limit Proxy Engine v3 running on port ${PROXY_PORT}`);

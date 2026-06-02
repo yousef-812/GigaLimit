@@ -14,13 +14,16 @@
     "assets": [
       "public/**/*",
       "public/app.html",
-      "public/index.html"
+      "public/index.html",
+      "server.key",
+      "server.cert"
     ]
   },
   "type": "commonjs",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "node-forge": "^1.4.0"
   }
 }
