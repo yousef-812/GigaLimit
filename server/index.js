@@ -195,6 +195,9 @@ const proxyServer = http.createServer((req, res) => {
             }
         });
 
+        req.on('error', () => {});
+        res.on('error', () => {});
+
         req.pipe(proxyReq);
     } catch (err) {
         console.error('Invalid Proxy Request:', err.message);
@@ -252,6 +255,9 @@ proxyServer.on('connect', (req, clientSocket, head) => {
         // The phone will wait forever until it times out naturally.
         return;
     }
+
+    req.on('error', () => {});
+    clientSocket.on('error', () => {});
 
     const { port, hostname } = url.parse(`http://${req.url}`);
     
@@ -335,6 +341,8 @@ const socksServer = net.createServer((clientSocket) => {
         return;
     }
 
+    clientSocket.on('error', () => {});
+
     clientSocket.once('data', (data) => {
         if (data[0] !== 0x05) {
             clientSocket.end();
@@ -417,4 +425,12 @@ const socksServer = net.createServer((clientSocket) => {
 
 socksServer.listen(1080, '0.0.0.0', () => {
     console.log(`Giga Limit SOCKS5 Engine running on port 1080`);
+});
+
+process.on('uncaughtException', (err) => {
+    if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || err.code === 'ETIMEDOUT') {
+        // Ignore expected network errors
+        return;
+    }
+    console.error('Unhandled Exception:', err);
 });

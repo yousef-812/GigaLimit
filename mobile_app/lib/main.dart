@@ -3,8 +3,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
-import 'package:http/http.dart' as http;
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+Future<void> initNotifications() async {
+  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
+  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+}
 
 class MyHttpOverrides extends HttpOverrides {
   @override
@@ -14,8 +23,10 @@ class MyHttpOverrides extends HttpOverrides {
   }
 }
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = MyHttpOverrides();
+  await initNotifications();
   runApp(const GigaLimitApp());
 }
 
@@ -189,7 +200,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _requestPermissions();
+    _initConnectivity();
     _loadData();
+  }
+
+  Future<void> _requestPermissions() async {
+    await Permission.notification.request();
+  }
+
+  void _initConnectivity() {
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> result) {
+      if (result.contains(ConnectivityResult.none)) {
+        _showNotification('تنبيه انقطاع الشبكة 🚨', 'تم تغير الشبكة أو انقطاع الاتصال! ارجع للتطبيق أو تأكد من الـ VPN ليعمل الإنترنت.');
+      }
+    });
+  }
+
+  Future<void> _showNotification(String title, String body) async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'giga_limit_channel', 'Giga Limit Notifications',
+      importance: Importance.max, priority: Priority.high,
+    );
+    const NotificationDetails platformDetails = NotificationDetails(android: androidDetails);
+    await flutterLocalNotificationsPlugin.show(DateTime.now().millisecond, title, body, platformDetails);
+  }
+
+  void _checkThresholds(double dailyPct, double weeklyPct) async {
+    final prefs = await SharedPreferences.getInstance();
+    final todayStr = DateTime.now().toIso8601String().split('T')[0];
+
+    void check(double pct, String type) {
+      int threshold = 0;
+      if (pct >= 1) threshold = 100;
+      else if (pct >= 0.75) threshold = 75;
+      else if (pct >= 0.5) threshold = 50;
+
+      if (threshold > 0) {
+        final key = 'notified_${type}_${threshold}_$todayStr';
+        if (prefs.getBool(key) != true) {
+          prefs.setBool(key, true);
+          String typeName = type == 'daily' ? 'اليومية' : 'الأسبوعية';
+          _showNotification('Giga Limit ⚠️', 'لقد تم استهلاك $threshold% من باقتك $typeName!');
+        }
+      }
+    }
+
+    check(dailyPct, 'daily');
+    check(weeklyPct, 'weekly');
   }
 
   Future<void> _loadData() async {
@@ -211,6 +269,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final data = jsonDecode(res.body);
           stats = data;
           canConnect = data['can_connect'];
+          
+          final limitMB = stats['user']['daily_limit_mb'] ?? 1;
+          final usedMB = (stats['usage_today_bytes'] / (1024 * 1024)).round();
+          final wLimitMB = stats['user']['weekly_limit_mb'] ?? (limitMB * 7);
+          final wUsedMB = ((stats['weekly_usage_bytes'] ?? 0) / (1024 * 1024)).round();
+          
+          _checkThresholds(usedMB / limitMB, wUsedMB / wLimitMB);
         });
       }
     } catch (e) {
