@@ -104,10 +104,16 @@ app.post('/api/admin/update_user', adminAuth, (req, res) => {
     }
 });
 
-app.post('/api/admin/renew_user', adminAuth, (req, res) => {
+app.post('/api/admin/renew_daily', adminAuth, (req, res) => {
     const { id } = req.body;
     const today = db.getLocalDateString();
     db.resetUsage(id, today);
+    res.json({ success: true });
+});
+
+app.post('/api/admin/renew_weekly', adminAuth, (req, res) => {
+    const { id } = req.body;
+    db.resetWeeklyUsage(id);
     res.json({ success: true });
 });
 

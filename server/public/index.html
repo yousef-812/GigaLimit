@@ -426,7 +426,8 @@
                         <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">Save Limits</button>
                     </div>
                     <div class="card-actions">
-                        <button class="btn-small" onclick="renewUser(${u.id})">Renew Quota</button>
+                        <button class="btn-small" onclick="renewDaily(${u.id})">Renew Daily</button>
+                        <button class="btn-small" onclick="renewWeekly(${u.id})">Renew Weekly</button>
                         <button class="btn-small" style="color: var(--primary);" onclick="resetToDefault(${u.id})">Reset to Default</button>
                         <button class="btn-small" onclick="updateUser(${u.id}, '${u.status === 'unlimited' ? 'active' : 'unlimited'}', ${u.daily_limit_mb}, ${weeklyLimit})">
                             ${u.status === 'unlimited' ? 'Disable Unlimited' : 'Unlimited Mode'}
@@ -452,8 +453,17 @@
             loadUsers();
         }
 
-        async function renewUser(id) {
-            await fetch('/api/admin/renew_user', {
+        async function renewDaily(id) {
+            await fetch('/api/admin/renew_daily', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                body: JSON.stringify({ id })
+            });
+            loadUsers();
+        }
+
+        async function renewWeekly(id) {
+            await fetch('/api/admin/renew_weekly', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
                 body: JSON.stringify({ id })

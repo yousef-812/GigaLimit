@@ -1,0 +1,33 @@
+{
+  "settings": {
+    "admin_password": "a",
+    "global_daily_limit_mb": 1024,
+    "global_weekly_limit_mb": 7000,
+    "global_total_bytes_used": 174040
+  },
+  "users": [
+    {
+      "id": 1,
+      "name": "TestUser",
+      "device_id": "dev1",
+      "current_ip": "::1",
+      "status": "active",
+      "daily_limit_mb": 1024
+    },
+    {
+      "id": 2,
+      "name": "TestUser2",
+      "device_id": "dev2",
+      "current_ip": "127.0.0.1",
+      "status": "active",
+      "daily_limit_mb": 1024
+    }
+  ],
+  "usage": [
+    {
+      "user_id": 2,
+      "date": "2026-06-01",
+      "bytes_used": 174040
+    }
+  ]
+}

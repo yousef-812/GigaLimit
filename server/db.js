@@ -152,6 +152,22 @@ module.exports = {
         }
     },
 
+    resetWeeklyUsage: (user_id) => {
+        const todayStr = getLocalDateString();
+        const today = new Date(todayStr);
+        const day = today.getDay(); // 0 = Sun, 6 = Sat
+        const daysSinceSaturday = (day + 1) % 7; 
+        
+        for (let i = 0; i <= daysSinceSaturday; i++) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            let usage = data.usage.find(u => u.user_id === parseInt(user_id) && u.date === dateStr);
+            if (usage) usage.bytes_used = 0;
+        }
+        save();
+    },
+
     updateGlobalLimit: (daily_limit, weekly_limit) => {
         const old_daily = data.settings.global_daily_limit_mb;
         const old_weekly = data.settings.global_weekly_limit_mb || (old_daily * 7);
