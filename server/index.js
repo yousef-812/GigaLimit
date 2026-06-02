@@ -21,6 +21,22 @@ app.get('/app.html', (req, res) => {
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+app.get('/download', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'download.html'));
+});
+
+app.get('/download_app', (req, res) => {
+    const fs = require('fs');
+    // Look for GigaLimit_App.apk in the same folder as the server .exe
+    const apkPath = path.join(process.cwd(), 'GigaLimit_App.apk');
+    if (fs.existsSync(apkPath)) {
+        res.download(apkPath, 'GigaLimit_App.apk');
+    } else {
+        res.status(404).send('APK not found on server.');
+    }
+});
+
 const getCleanIp = (req) => {
     let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     if (ip.includes('::ffff:')) ip = ip.split('::ffff:')[1];
