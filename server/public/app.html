@@ -4,16 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Giga Limit</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #0f172a;
-            --card-bg: #1e293b;
-            --primary: #3b82f6;
-            --purple: #a855f7;
-            --text-light: #f8fafc;
-            --text-dim: #94a3b8;
-            --success: #22c55e;
+            --bg-dark: #013e37;
+            --card-bg: rgba(0, 30, 25, 0.7);
+            --primary: #ffefb3;
+            --purple: #e6d38a;
+            --text-light: #ffefb3;
+            --text-dim: rgba(255, 239, 179, 0.6);
+            --success: #34d399;
             --danger: #ef4444;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
@@ -22,11 +23,11 @@
         
         /* Registration Screen */
         #register-screen { display: none; flex-direction: column; justify-content: center; height: 100vh; text-align: center; }
-        .logo-circle { width: 100px; height: 100px; background: linear-gradient(135deg, var(--primary), var(--purple)); border-radius: 50%; margin: 0 auto 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(59, 130, 246, 0.4); }
+        .logo-circle { width: 100px; height: 100px; background: linear-gradient(135deg, var(--bg-dark), var(--card-bg)); border: 2px solid var(--primary); border-radius: 50%; margin: 0 auto 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(255, 239, 179, 0.2); }
         .logo-circle svg { width: 50px; height: 50px; fill: white; }
-        input { background: var(--card-bg); border: 1px solid #334155; color: white; padding: 16px; border-radius: 12px; font-size: 16px; width: 100%; margin-bottom: 24px; outline: none; transition: border 0.3s; }
+        input { background: rgba(0,0,0,0.3); border: 1px solid rgba(255, 239, 179, 0.2); color: var(--text-light); padding: 16px; border-radius: 12px; font-size: 16px; width: 100%; margin-bottom: 24px; outline: none; transition: border 0.3s; }
         input:focus { border-color: var(--primary); }
-        button { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); transition: transform 0.2s; }
+        button { background: var(--primary); color: var(--bg-dark); border: none; padding: 16px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(255, 239, 179, 0.2); transition: transform 0.2s; }
         button:active { transform: scale(0.98); }
         
         /* Dashboard Screen */
@@ -44,8 +45,8 @@
         .progress-circle circle { fill: none; stroke-width: 16; stroke-linecap: round; }
         .bg-circle { stroke: rgba(255,255,255,0.05); }
         .fg-circle { stroke-dasharray: 628; stroke-dashoffset: 628; transition: stroke-dashoffset 1s ease-out; }
-        .fg-daily { stroke: var(--primary); filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6)); }
-        .fg-weekly { stroke: var(--purple); filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.6)); }
+        .fg-daily { stroke: var(--primary); filter: drop-shadow(0 0 8px rgba(255, 239, 179, 0.4)); }
+        .fg-weekly { stroke: var(--purple); filter: drop-shadow(0 0 8px rgba(230, 211, 138, 0.4)); }
         
         .circle-content { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .circle-content .value { font-size: 42px; font-weight: 700; }
@@ -54,9 +55,40 @@
         .weekly-val { color: var(--purple); }
         
         .usage-text { font-size: 18px; color: var(--text-light); }
+
+        #in-app-banner {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: var(--card-bg);
+            border: 1px solid var(--primary);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border-radius: 12px;
+            padding: 16px;
+            z-index: 1000;
+            animation: slideDown 0.4s ease;
+        }
+        @keyframes slideDown {
+            from { top: -100px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
+        .banner-title { font-weight: bold; color: var(--primary); margin-bottom: 8px; font-size: 18px; }
+        .banner-body { color: var(--text-light); font-size: 14px; margin-bottom: 12px; }
+        .banner-close { background: rgba(255, 239, 179, 0.1); color: var(--text-light); padding: 8px; font-size: 14px; border-radius: 8px; width: auto; float: right; }
     </style>
 </head>
 <body>
+
+<div id="in-app-banner">
+    <div class="banner-title" id="banner-title">Alert</div>
+    <div class="banner-body" id="banner-body">Message</div>
+    <button class="banner-close" onclick="document.getElementById('in-app-banner').style.display='none'">Dismiss</button>
+    <div style="clear: both;"></div>
+</div>
 
 <div class="container">
     <!-- REGISTRATION SCREEN -->
@@ -120,6 +152,12 @@
     } else {
         document.getElementById('dashboard-screen').style.display = 'block';
         document.getElementById('user-name').innerText = `Hello, ${userName}`;
+        
+        // Request notifications if not granted
+        if (window.Notification && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            Notification.requestPermission();
+        }
+
         fetchStatus();
         setInterval(fetchStatus, 3000);
     }
@@ -157,6 +195,52 @@
         } catch (e) {}
     }
 
+    function sendNotification(title, body) {
+        if (window.Notification && Notification.permission === 'granted') {
+            try {
+                new Notification(title, { body, icon: '/favicon.png' });
+            } catch (e) {
+                showFallbackBanner(title, body);
+            }
+        } else {
+            showFallbackBanner(title, body);
+        }
+    }
+
+    function showFallbackBanner(title, body) {
+        document.getElementById('banner-title').innerText = title;
+        document.getElementById('banner-body').innerText = body;
+        document.getElementById('in-app-banner').style.display = 'block';
+        setTimeout(() => { document.getElementById('in-app-banner').style.display = 'none'; }, 8000);
+    }
+
+    window.addEventListener('offline', () => {
+        sendNotification('تنبيه انقطاع الشبكة 🚨', 'تم تغير الشبكة أو انقطاع الاتصال! اضغط للرجوع للتطبيق أو تأكد من الـ VPN ليعمل الإنترنت.');
+    });
+
+    function checkThresholds(dailyPct, weeklyPct) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        const check = (pct, type) => {
+            let threshold = 0;
+            if (pct >= 1) threshold = 100;
+            else if (pct >= 0.75) threshold = 75;
+            else if (pct >= 0.5) threshold = 50;
+
+            if (threshold > 0) {
+                const key = `notified_${type}_${threshold}_${todayStr}`;
+                if (!localStorage.getItem(key)) {
+                    localStorage.setItem(key, 'true');
+                    let typeName = type === 'daily' ? 'اليومية' : 'الأسبوعية';
+                    sendNotification('Giga Limit ⚠️', `لقد تم استهلاك ${threshold}% من باقتك ${typeName}!`);
+                }
+            }
+        };
+
+        check(dailyPct, 'daily');
+        check(weeklyPct, 'weekly');
+    }
+
     function updateUI(data) {
         // Status Badge
         const badge = document.getElementById('status-badge');
@@ -189,6 +273,9 @@
         document.getElementById('weekly-left').innerText = weeklyLeft;
         document.getElementById('weekly-usage-text').innerText = `${weeklyUsed} MB / ${weeklyLimit} MB Used`;
         document.getElementById('weekly-ring').style.strokeDashoffset = 628 - (628 * weeklyPct);
+
+        // Check Notifications
+        checkThresholds(dailyPct, weeklyPct);
     }
 </script>
 

@@ -4,17 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Giga Limit Admin</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0f172a;
-            --surface: rgba(30, 41, 59, 0.7);
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --text: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: rgba(255, 255, 255, 0.1);
-            --success: #10b981;
+            --bg: #013e37;
+            --surface: rgba(0, 30, 25, 0.7);
+            --primary: #ffefb3;
+            --primary-hover: #e6d38a;
+            --text: #ffefb3;
+            --text-muted: rgba(255, 239, 179, 0.6);
+            --border: rgba(255, 239, 179, 0.2);
+            --success: #34d399;
             --danger: #ef4444;
             --warning: #f59e0b;
         }
@@ -66,9 +67,7 @@
         .login-box h1 {
             margin-top: 0;
             font-size: 2rem;
-            background: linear-gradient(to right, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            color: transparent;
+            color: var(--primary);
         }
 
         input {
@@ -76,10 +75,10 @@
             padding: 12px 16px;
             margin: 8px 0;
             box-sizing: border-box;
-            background: rgba(0,0,0,0.2);
+            background: rgba(0,0,0,0.3);
             border: 1px solid var(--border);
             border-radius: 8px;
-            color: white;
+            color: var(--text);
             font-family: inherit;
             font-size: 1rem;
             transition: all 0.2s;
@@ -88,14 +87,14 @@
         input:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 0 0 2px rgba(255, 239, 179, 0.3);
         }
 
         button {
             width: 100%;
             padding: 12px;
             background: var(--primary);
-            color: white;
+            color: var(--bg);
             border: none;
             border-radius: 8px;
             font-size: 1rem;
@@ -204,14 +203,17 @@
         }
 
         .btn-small {
-            padding: 8px;
+            width: auto;
+            padding: 6px 12px;
             font-size: 0.875rem;
-            background: rgba(255,255,255,0.05);
+            background: rgba(255, 239, 179, 0.1);
+            color: var(--primary);
             border: 1px solid var(--border);
         }
         
         .btn-small:hover {
-            background: rgba(255,255,255,0.1);
+            background: var(--primary);
+            color: var(--bg);
         }
 
         .btn-danger {
