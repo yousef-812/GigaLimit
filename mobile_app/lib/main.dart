@@ -4,7 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:http/http.dart' as http;
+
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
+
 void main() {
+  HttpOverrides.global = MyHttpOverrides();
   runApp(const GigaLimitApp());
 }
 
@@ -17,8 +28,9 @@ class GigaLimitApp extends StatelessWidget {
       title: 'Giga Limit',
       theme: ThemeData(
         brightness: Brightness.dark,
-        primaryColor: const Color(0xFF3B82F6),
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        primaryColor: const Color(0xFFFFEFB3), // Butter
+        scaffoldBackgroundColor: const Color(0xFF013E37), // Dark Green
+        cardColor: const Color(0xFF002823), // Darker Green for cards
         fontFamily: 'Roboto',
       ),
       home: const BootScreen(),
@@ -58,7 +70,7 @@ class _BootScreenState extends State<BootScreen> {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
+      body: Center(child: CircularProgressIndicator(color: Color(0xFFFFEFB3))),
     );
   }
 }
@@ -89,7 +101,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     
     try {
       final res = await http.post(
-        Uri.parse('http://$serverIp:3000/api/register'),
+        Uri.parse('https://$serverIp:3000/api/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'device_id': deviceId, 'name': _nameController.text}),
       );
@@ -193,7 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _fetchStats() async {
     if (serverIp.isEmpty) return;
     try {
-      final res = await http.get(Uri.parse('http://$serverIp:3000/api/status/$deviceId'));
+      final res = await http.get(Uri.parse('https://$serverIp:3000/api/status/$deviceId'));
       if (res.statusCode == 200) {
         setState(() {
           final data = jsonDecode(res.body);
@@ -243,21 +255,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 children: [
-                  _buildQuotaCard('Daily Quota', usedMB, limitMB, const Color(0xFF3B82F6)),
+                  _buildQuotaCard('Daily Quota', usedMB, limitMB, const Color(0xFFFFEFB3)),
                   const SizedBox(height: 16),
-                  _buildQuotaCard('Weekly Quota', wUsedMB, wLimitMB, const Color(0xFFA855F7)),
+                  _buildQuotaCard('Weekly Quota', wUsedMB, wLimitMB, const Color(0xFFE6D38A)),
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.settings),
                     label: const Text('Auto-Configure Wi-Fi'),
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16), backgroundColor: const Color(0xFF1E293B)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.all(16), 
+                      backgroundColor: const Color(0xFFE6D38A),
+                      foregroundColor: Colors.black,
+                    ),
                     onPressed: () {
                       showDialog(
                         context: context,
                         builder: (_) => AlertDialog(
-                          backgroundColor: const Color(0xFF1E293B),
+                          backgroundColor: const Color(0xFF002823),
                           title: const Text('Security Restriction'),
-                          content: const Text('Android OS blocks apps from automatically changing Wi-Fi Proxy settings to protect user security.\\n\\nYou must open your Wi-Fi settings manually and set the proxy to:\\nIP: 192.168.100.84\\nPort: 8080'),
+                          content: const Text('Android OS blocks apps from automatically changing Wi-Fi Proxy settings to protect user security.\n\nYou must open your Wi-Fi settings manually and set the proxy to:\nIP: 192.168.100.84\nPort: 8080'),
                           actions: [
                             TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
                           ]
@@ -281,13 +297,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B), 
+        color: const Color(0xFF002823), 
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+            color: Colors.black45,
+            blurRadius: 10,
+            offset: Offset(0, 4),
           )
         ]
       ),

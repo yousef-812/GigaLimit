@@ -109,6 +109,9 @@
             <div id="status-badge" class="status-badge active">
                 <span id="status-icon">●</span> <span id="status-text">Internet Active</span>
             </div>
+            <button id="enable-notif-btn" style="display: none; margin-top: 16px; background: var(--success); font-size: 14px; padding: 10px;" onclick="requestNotifPermission()">
+                🔔 تفعيل الإشعارات
+            </button>
         </div>
 
         <div class="card">
@@ -153,13 +156,31 @@
         document.getElementById('dashboard-screen').style.display = 'block';
         document.getElementById('user-name').innerText = `Hello, ${userName}`;
         
-        // Request notifications if not granted
-        if (window.Notification && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-            Notification.requestPermission();
-        }
+        checkNotifButton();
 
         fetchStatus();
         setInterval(fetchStatus, 3000);
+    }
+
+    function checkNotifButton() {
+        if (window.Notification && Notification.permission === 'default') {
+            document.getElementById('enable-notif-btn').style.display = 'block';
+        } else {
+            document.getElementById('enable-notif-btn').style.display = 'none';
+        }
+    }
+
+    function requestNotifPermission() {
+        if (window.Notification) {
+            Notification.requestPermission().then(permission => {
+                checkNotifButton();
+                if (permission === 'granted') {
+                    sendNotification('تم التفعيل بنجاح! ✅', 'ستصلك إشعارات الباقة هنا.');
+                } else {
+                    alert('تم رفض صلاحية الإشعارات أو المتصفح يمنعها بسبب الرابط المحلي.');
+                }
+            });
+        }
     }
 
     async function register() {
