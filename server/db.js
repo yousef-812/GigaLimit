@@ -86,6 +86,26 @@ module.exports = {
     
     getUserByIp: (ip) => data.users.find(u => u.current_ip === ip),
 
+    setNotification: (id, message) => {
+        let user = data.users.find(u => u.id === parseInt(id));
+        if (user) {
+            user.pending_notification = message;
+            save();
+            return true;
+        }
+        return false;
+    },
+
+    clearNotification: (id) => {
+        let user = data.users.find(u => u.id === parseInt(id));
+        if (user) {
+            delete user.pending_notification;
+            save();
+            return true;
+        }
+        return false;
+    },
+
     getUsage: (user_id, date) => {
         let usage = data.usage.find(u => u.user_id === user_id && u.date === date);
         return usage ? usage.bytes_used : 0;

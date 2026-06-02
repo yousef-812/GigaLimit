@@ -276,6 +276,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final wUsedMB = ((stats['weekly_usage_bytes'] ?? 0) / (1024 * 1024)).round();
           
           _checkThresholds(usedMB / limitMB, wUsedMB / wLimitMB);
+
+          if (data['pending_notification'] != null) {
+            _showNotification('رسالة من الإدارة 📩', data['pending_notification']);
+            http.post(
+              Uri.parse('https://$serverIp:3000/api/clear_notification'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'device_id': deviceId})
+            );
+          }
         });
       }
     } catch (e) {

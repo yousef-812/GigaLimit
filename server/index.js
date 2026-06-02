@@ -48,6 +48,17 @@ app.post('/api/ping', (req, res) => {
     res.json({ success: true });
 });
 
+app.post('/api/clear_notification', (req, res) => {
+    const { device_id } = req.body;
+    const user = db.getUserByDeviceId(device_id);
+    if (user) {
+        db.clearNotification(user.id);
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'User not found' });
+    }
+});
+
 app.get('/api/status/:device_id', (req, res) => {
     const device_id = req.params.device_id;
     const ip = getCleanIp(req);
@@ -73,7 +84,8 @@ app.get('/api/status/:device_id', (req, res) => {
         daily_remaining_bytes: Math.max(0, daily_limit_bytes - bytes_used),
         weekly_usage_bytes: weekly_bytes_used,
         weekly_limit_bytes: weekly_limit_bytes,
-        can_connect: user.status === 'unlimited' || (user.status === 'active' && bytes_used < daily_limit_bytes && weekly_bytes_used < weekly_limit_bytes)
+        can_connect: user.status === 'unlimited' || (user.status === 'active' && bytes_used < daily_limit_bytes && weekly_bytes_used < weekly_limit_bytes),
+        pending_notification: user.pending_notification || null
     });
 });
 
@@ -107,6 +119,15 @@ app.post('/api/admin/update_user', adminAuth, (req, res) => {
 app.post('/api/admin/set_usage', adminAuth, (req, res) => {
     const { id, daily_bytes, weekly_bytes } = req.body;
     if (db.setUsageDirectly(id, daily_bytes, weekly_bytes)) {
+        res.json({ success: true });
+    } else {
+        res.status(400).json({ error: 'User not found' });
+    }
+});
+
+app.post('/api/admin/send_notification', adminAuth, (req, res) => {
+    const { id, message } = req.body;
+    if (db.setNotification(id, message)) {
         res.json({ success: true });
     } else {
         res.status(400).json({ error: 'User not found' });

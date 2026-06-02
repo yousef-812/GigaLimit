@@ -477,6 +477,9 @@
                         <button class="btn-small btn-danger" style="grid-column: span 2; margin-top: 0.5rem;" onclick="deleteUser(${u.id})">
                             Delete Device 🗑️
                         </button>
+                        <button class="btn-small" style="grid-column: span 2; margin-top: 0.5rem; background: var(--primary); color: var(--bg);" onclick="sendNotification(${u.id})">
+                            Send Notification 🔔
+                        </button>
                     </div>
                 `;
             });
@@ -489,6 +492,18 @@
                 body: JSON.stringify({ id, status, daily_limit_mb: daily_limit, weekly_limit_mb: weekly_limit })
             });
             loadUsers();
+        }
+
+        async function sendNotification(id) {
+            const message = prompt("Enter the notification message to send to this user:");
+            if (message && message.trim() !== "") {
+                await fetch('/api/admin/send_notification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                    body: JSON.stringify({ id, message: message.trim() })
+                });
+                alert("Notification Sent!");
+            }
         }
 
         async function renewDaily(id) {
