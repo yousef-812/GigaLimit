@@ -372,6 +372,12 @@ try {
     });
 }
 
+// Always provide a plain HTTP fallback on port 3001 for devices that reject self-signed HTTPS
+const HTTP_PORT = 3001;
+app.listen(HTTP_PORT, '0.0.0.0', () => {
+    console.log(`Giga Limit API (Plain HTTP Fallback) running on port ${HTTP_PORT}`);
+});
+
 proxyServer.listen(PROXY_PORT, '0.0.0.0', () => {
     console.log(`Giga Limit Proxy Engine v3 running on port ${PROXY_PORT}`);
 });
