@@ -18,6 +18,11 @@ class MainActivity : FlutterActivity() {
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 startActivity(intent)
                 result.success(true)
+            } else if (call.method == "checkAccessibilityPermission") {
+                val enabledServices = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                val expectedName = context.packageName + "/" + ScreenMonitorService::class.java.name
+                val isEnabled = enabledServices?.contains(expectedName) == true
+                result.success(isEnabled)
             } else {
                 result.notImplemented()
             }

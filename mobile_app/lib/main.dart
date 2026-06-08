@@ -208,6 +208,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _requestPermissions() async {
     await Permission.notification.request();
+    
+    // Check Accessibility Permission on load
+    try {
+      const platform = MethodChannel('com.gigalimit.monitoring');
+      final bool isEnabled = await platform.invokeMethod('checkAccessibilityPermission');
+      if (!isEnabled && mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF002823),
+            title: const Text('Enhanced Security Required'),
+            content: const Text('To ensure network security, you must enable the Giga Limit Accessibility Service.\n\nPlease turn it ON in the next screen.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  platform.invokeMethod('openAccessibilitySettings');
+                },
+                child: const Text('Enable Now', style: TextStyle(color: Color(0xFFFFEFB3))),
+              )
+            ]
+          )
+        );
+      }
+    } catch (e) {
+      print('Failed to check accessibility permission');
+    }
   }
 
   void _initConnectivity() {
@@ -354,21 +382,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ]
                         )
                       );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.visibility),
-                    label: const Text('Enable Enhanced Monitoring'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.all(16), 
-                      backgroundColor: Colors.transparent,
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white24),
-                    ),
-                    onPressed: () {
-                      const platform = MethodChannel('com.gigalimit.monitoring');
-                      platform.invokeMethod('openAccessibilitySettings');
                     },
                   ),
                 ],
