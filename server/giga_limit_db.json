@@ -1,33 +1,118 @@
 {
   "settings": {
-    "admin_password": "a",
-    "global_daily_limit_mb": 1024,
-    "global_weekly_limit_mb": 7000,
-    "global_total_bytes_used": 174040
+    "admin_password": "admin123",
+    "global_daily_limit_mb": 1000,
+    "global_weekly_limit_mb": 5500,
+    "global_total_bytes_used": 20519729162
   },
   "users": [
     {
       "id": 1,
-      "name": "TestUser",
-      "device_id": "dev1",
-      "current_ip": "::1",
+      "name": "Yousef",
+      "device_id": "web_1780830927434_214",
+      "current_ip": "192.168.100.103",
       "status": "active",
-      "daily_limit_mb": 1024
+      "daily_limit_mb": 1000,
+      "weekly_limit_mb": 5500,
+      "weekly_offset": 0
     },
     {
-      "id": 2,
-      "name": "TestUser2",
-      "device_id": "dev2",
-      "current_ip": "127.0.0.1",
+      "id": 5,
+      "name": "Mariem",
+      "device_id": "web_1780322483433_945",
+      "current_ip": "192.168.100.107",
+      "daily_limit_mb": 1000,
+      "weekly_limit_mb": 5500,
       "status": "active",
-      "daily_limit_mb": 1024
+      "registered_at": "2026-06-01",
+      "weekly_offset": -347991049
+    },
+    {
+      "id": 9,
+      "name": "marwa",
+      "device_id": "dev_1780572446973",
+      "current_ip": "192.168.100.110",
+      "daily_limit_mb": 1000,
+      "weekly_limit_mb": 7000,
+      "status": "active",
+      "registered_at": "2026-06-04"
+    },
+    {
+      "id": 10,
+      "name": "Alaa",
+      "device_id": "web_1780830850663_273",
+      "current_ip": "192.168.100.135",
+      "daily_limit_mb": 1000,
+      "weekly_limit_mb": 7000,
+      "status": "active",
+      "registered_at": "2026-06-07"
     }
   ],
   "usage": [
     {
-      "user_id": 2,
+      "user_id": 1,
+      "date": "2026-05-31",
+      "bytes_used": 40929324
+    },
+    {
+      "user_id": 1,
       "date": "2026-06-01",
-      "bytes_used": 174040
+      "bytes_used": 714952979
+    },
+    {
+      "user_id": 5,
+      "date": "2026-06-01",
+      "bytes_used": 1055536858
+    },
+    {
+      "user_id": 1,
+      "date": "2026-06-02",
+      "bytes_used": 827647476
+    },
+    {
+      "user_id": 5,
+      "date": "2026-06-02",
+      "bytes_used": 1061661262
+    },
+    {
+      "user_id": 1,
+      "date": "2026-06-03",
+      "bytes_used": 958031186
+    },
+    {
+      "user_id": 5,
+      "date": "2026-06-03",
+      "bytes_used": 1049941947
+    },
+    {
+      "user_id": 1,
+      "date": "2026-06-04",
+      "bytes_used": 957342378
+    },
+    {
+      "user_id": 5,
+      "date": "2026-06-04",
+      "bytes_used": 1067300712
+    },
+    {
+      "user_id": 9,
+      "date": "2026-06-04",
+      "bytes_used": 410061601
+    },
+    {
+      "user_id": 1,
+      "date": "2026-06-07",
+      "bytes_used": 712715508
+    },
+    {
+      "user_id": 9,
+      "date": "2026-06-07",
+      "bytes_used": 477064544
+    },
+    {
+      "user_id": 10,
+      "date": "2026-06-07",
+      "bytes_used": 325850
     }
   ]
 }

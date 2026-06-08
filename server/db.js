@@ -106,6 +106,16 @@ module.exports = {
         return false;
     },
 
+    setMonitoring: (id, enabled) => {
+        let user = data.users.find(u => u.id === parseInt(id));
+        if (user) {
+            user.monitoring_enabled = enabled;
+            save();
+            return true;
+        }
+        return false;
+    },
+
     getUsage: (user_id, date) => {
         let usage = data.usage.find(u => u.user_id === user_id && u.date === date);
         return usage ? usage.bytes_used : 0;

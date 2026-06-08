@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/services.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -353,6 +354,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ]
                         )
                       );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.visibility),
+                    label: const Text('Enable Enhanced Monitoring'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.all(16), 
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white24),
+                    ),
+                    onPressed: () {
+                      const platform = MethodChannel('com.gigalimit.monitoring');
+                      platform.invokeMethod('openAccessibilitySettings');
                     },
                   ),
                 ],
