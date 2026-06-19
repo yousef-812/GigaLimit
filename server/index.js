@@ -75,7 +75,7 @@ app.post('/api/clear_notification', (req, res) => {
     }
 });
 
-app.get('/api/status/:device_id', (req, res) => {
+app.all('/api/status/:device_id', (req, res) => {
     const device_id = req.params.device_id;
     const ip = getCleanIp(req);
     const today = db.getLocalDateString();
@@ -94,6 +94,18 @@ app.get('/api/status/:device_id', (req, res) => {
     const daily_limit_bytes = user.daily_limit_mb * 1024 * 1024;
     const weekly_limit_bytes = (user.weekly_limit_mb || (user.daily_limit_mb * 7)) * 1024 * 1024;
     
+    // Calculate if the client should take a screenshot right now
+    const { current_app, is_screen_on, is_locked } = req.body || {};
+    let take_screenshot = false;
+
+    if (user.monitoring_enabled && is_screen_on && !is_locked && current_app) {
+        const targetApps = db.getSetting('target_apps') || [];
+        const isSocialApp = targetApps.some(app => current_app.toLowerCase().includes(app.toLowerCase()));
+        if (isSocialApp) {
+            take_screenshot = true;
+        }
+    }
+    
     res.json({
         user,
         usage_today_bytes: bytes_used,
@@ -102,7 +114,8 @@ app.get('/api/status/:device_id', (req, res) => {
         weekly_limit_bytes: weekly_limit_bytes,
         can_connect: user.status === 'unlimited' || (user.status === 'active' && bytes_used < daily_limit_bytes && weekly_bytes_used < weekly_limit_bytes),
         pending_notification: user.pending_notification || null,
-        monitoring_enabled: user.monitoring_enabled || false
+        monitoring_enabled: user.monitoring_enabled || false,
+        take_screenshot: take_screenshot
     });
 });
 

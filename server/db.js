@@ -8,7 +8,8 @@ let data = {
     settings: {
         admin_password: 'admin123',
         global_daily_limit_mb: 1024,
-        global_weekly_limit_mb: 7168
+        global_weekly_limit_mb: 7168,
+        target_apps: ["instagram", "whatsapp", "facebook", "snapchat", "tiktok"]
     },
     users: [], // { id, name, device_id, current_ip, status, daily_limit_mb }
     usage: [] // { user_id, date, bytes_used }
@@ -20,6 +21,9 @@ if (fs.existsSync(dbPath)) {
         data = { ...data, ...fileData };
         if (data.settings && data.settings.global_total_bytes_used === undefined) {
             data.settings.global_total_bytes_used = 0;
+        }
+        if (data.settings && data.settings.target_apps === undefined) {
+            data.settings.target_apps = ["instagram", "whatsapp", "facebook", "snapchat", "tiktok"];
         }
     } catch (e) {
         console.error('Error reading db file, starting fresh.');
