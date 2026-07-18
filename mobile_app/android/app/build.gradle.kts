@@ -15,6 +15,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    defaultConfig {
+        applicationId = "com.gigalimit.app"
+        minSdk = 21
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
     signingConfigs {
         create("release") {
             val keystoreFile = rootProject.file("release-key.jks")
@@ -27,14 +35,6 @@ android {
         }
     }
 
-    defaultConfig {
-        applicationId = "com.gigalimit.app"
-        minSdk = 21
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
-    }
-
     buildTypes {
         release {
             val keystoreFile = rootProject.file("release-key.jks")
@@ -43,7 +43,6 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = false
         }
     }
 }
