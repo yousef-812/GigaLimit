@@ -90,13 +90,13 @@ class VpnProxyService : VpnService() {
         }
         val socksAddr = "$serverIp:1080"
 
-        val assetName = AssetHelper.getArchBinaryName("tun2socks")
-        Log.i(TAG, "Looking for asset: $assetName (arch: ${AssetHelper.getDeviceAbi()})")
+        val nativeDir = applicationInfo.nativeLibraryDir
+        val binaryFile = File(nativeDir, "libtun2socks.so")
+        Log.i(TAG, "Looking for tun2socks: ${binaryFile.absolutePath} (exists=${binaryFile.exists()}, canExec=${binaryFile.canExecute()})")
 
-        val binaryFile = AssetHelper.extractBinary(this, assetName)
-        if (binaryFile == null) {
-            Log.e(TAG, "Failed to extract tun2socks binary from assets. Asset: $assetName")
-            Log.e(TAG, "Available assets: ${AssetHelper.listAssets(this).joinToString()}")
+        if (!binaryFile.exists()) {
+            Log.e(TAG, "tun2socks binary not found in nativeLibraryDir: $nativeDir")
+            Log.e(TAG, "Files in nativeLibDir: ${File(nativeDir).listFiles()?.joinToString { it.name } ?: "none"}")
             stopSelf()
             return
         }
@@ -107,7 +107,7 @@ class VpnProxyService : VpnService() {
                 fd.toString(),
                 socksAddr
             )
-            pb.directory(AssetHelper.getBinDir(this))
+            pb.directory(File(nativeDir))
             pb.redirectErrorStream(true)
 
             tun2socksProcess = pb.start()

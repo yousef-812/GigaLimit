@@ -4,7 +4,15 @@ const path = require('path');
 const http = require('http');
 const net = require('net');
 const url = require('url');
+const fs = require('fs');
+const os = require('os');
 const db = require('./db');
+
+const isPkg = typeof process.pkg !== 'undefined';
+const appDir = isPkg ? path.dirname(process.execPath) : __dirname;
+
+let pub;
+try { pub = require('./public_bundle'); } catch (e) { pub = null; }
 
 const app = express();
 const API_PORT = 3000;
@@ -12,24 +20,62 @@ const PROXY_PORT = 8080;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/app.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'app.html'));
-});
+const mimeTypes = {
+    '.html': 'text/html',
+    '.js': 'application/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.ico': 'image/x-icon'
+};
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+function getLocalIP() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+        }
+    }
+    return '127.0.0.1';
+}
 
-app.get('/download', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'download.html'));
-});
+function serveFile(req, res, filename) {
+    if (pub && pub.files && pub.files[filename]) {
+        res.set('Content-Type', mimeTypes[path.extname(filename)] || 'text/html');
+        return res.send(pub.files[filename]);
+    }
+    if (!isPkg) {
+        return res.sendFile(path.join(__dirname, 'public', filename));
+    }
+    res.status(404).send('File not found');
+}
+
+function serveFavicon(req, res) {
+    if (pub && pub.files && pub.files.favicon_b64) {
+        res.set('Content-Type', 'image/png');
+        return res.send(Buffer.from(pub.files.favicon_b64, 'base64'));
+    }
+    if (!isPkg) {
+        return res.sendFile(path.join(__dirname, 'public', 'favicon.png'));
+    }
+    res.status(404).end();
+}
+
+app.get('/favicon.png', serveFavicon);
+app.get('/favicon.ico', serveFavicon);
+
+app.get('/', (req, res) => serveFile(req, res, 'index.html'));
+app.get('/app.html', (req, res) => serveFile(req, res, 'app.html'));
+app.get('/download', (req, res) => serveFile(req, res, 'download.html'));
+
+if (!isPkg) {
+    app.use(express.static(path.join(__dirname, 'public')));
+}
 
 app.get('/download_app', (req, res) => {
-    const fs = require('fs');
-    // Look for GigaLimit_App.apk in the same folder as the server .exe
-    const apkPath = path.join(process.cwd(), 'GigaLimit_App.apk');
+    const apkPath = path.join(appDir, 'GigaLimit_App.apk');
     if (fs.existsSync(apkPath)) {
         res.download(apkPath, 'GigaLimit_App.apk');
     } else {
@@ -83,7 +129,6 @@ app.get('/api/status/:device_id', (req, res) => {
     const user = db.getUserByDeviceId(device_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    // Auto-update IP if the device changed networks (e.g. from Main Router to Access Point)
     if (user.current_ip !== ip) {
         db.updateUserIp(device_id, ip);
         user.current_ip = ip;
@@ -297,9 +342,6 @@ proxyServer.on('connect', (req, clientSocket, head) => {
     if (clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
 
     if (!isAllowed(clientIp)) {
-        // BLACKHOLE STRATEGY: Do not destroy the socket immediately.
-        // We hold the connection hostage so the phone hangs and doesn't fallback to 4G.
-        // The phone will wait forever until it times out naturally.
         return;
     }
 
@@ -330,8 +372,6 @@ proxyServer.on('connect', (req, clientSocket, head) => {
                 bytesTransferred = 0;
             }
             if (!isAllowed(clientIp)) {
-                // If they run out of quota mid-stream, we pause the stream instead of killing it.
-                // clientSocket.pause() stops reading data from the client, effectively freezing it.
                 clientSocket.pause();
                 if (serverSocket) serverSocket.pause();
             }
@@ -356,26 +396,65 @@ proxyServer.on('connect', (req, clientSocket, head) => {
     }
 });
 
+// --- SSL + HTTPS ---
+function getSSL() {
+    if (pub && pub.sslKey && pub.sslCert) {
+        return { key: pub.sslKey, cert: pub.sslCert };
+    }
+    if (!isPkg) {
+        try {
+            return {
+                key: fs.readFileSync(path.join(__dirname, 'server.key'), 'utf8'),
+                cert: fs.readFileSync(path.join(__dirname, 'server.cert'), 'utf8')
+            };
+        } catch (e) {}
+    }
+    try {
+        const forge = require('node-forge');
+        const keys = forge.pki.rsa.generateKeyPair(2048);
+        const cert = forge.pki.createCertificate();
+        cert.publicKey = keys.publicKey;
+        cert.serialNumber = '01';
+        cert.validity.notBefore = new Date();
+        cert.validity.notAfter = new Date();
+        cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 10);
+        const ip = getLocalIP();
+        cert.setSubject([{ name: 'commonName', value: ip }]);
+        cert.setIssuer([{ name: 'commonName', value: ip }]);
+        cert.sign(keys.privateKey);
+        const keyPem = forge.pki.privateKeyToPem(keys.privateKey);
+        const certPem = forge.pki.certificateToPem(cert);
+        fs.writeFileSync(path.join(appDir, 'server.key'), keyPem);
+        fs.writeFileSync(path.join(appDir, 'server.cert'), certPem);
+        console.log(`[SSL] Generated self-signed cert for IP: ${ip}`);
+        return { key: keyPem, cert: certPem };
+    } catch (e) {
+        console.error('[SSL] Failed to generate certs:', e.message);
+        return null;
+    }
+}
+
+const localIP = getLocalIP();
+
 try {
-    const fs = require('fs');
     const https = require('https');
-    const sslOptions = {
-        key: fs.readFileSync(path.join(__dirname, 'server.key')),
-        cert: fs.readFileSync(path.join(__dirname, 'server.cert'))
-    };
-    https.createServer(sslOptions, app).listen(API_PORT, '0.0.0.0', () => {
-        console.log(`Giga Limit API running securely on HTTPS port ${API_PORT}`);
-        console.log(`Admin login: http://localhost:${API_PORT} (password in admin_credentials.txt)`);
-    });
+    const ssl = getSSL();
+    if (ssl) {
+        https.createServer(ssl, app).listen(API_PORT, '0.0.0.0', () => {
+            console.log(`Giga Limit API running securely on HTTPS port ${API_PORT}`);
+            console.log(`Admin login: http://${localIP}:${API_PORT} (password in admin_credentials.txt)`);
+            console.log(`Local: http://localhost:${API_PORT}`);
+        });
+    } else {
+        throw new Error('No SSL');
+    }
 } catch (e) {
-    console.log('SSL certs not found, falling back to HTTP');
     app.listen(API_PORT, '0.0.0.0', () => {
-        console.log(`Giga Limit API running on port ${API_PORT}`);
-        console.log(`Admin login: http://localhost:${API_PORT} (password in admin_credentials.txt)`);
+        console.log(`Giga Limit API running on HTTP port ${API_PORT}`);
+        console.log(`Admin login: http://${localIP}:${API_PORT} (password in admin_credentials.txt)`);
     });
 }
 
-// Always provide a plain HTTP fallback on port 3001 for devices that reject self-signed HTTPS
 const HTTP_PORT = 3001;
 app.listen(HTTP_PORT, '0.0.0.0', () => {
     console.log(`Giga Limit API (Plain HTTP Fallback) running on port ${HTTP_PORT}`);
@@ -391,8 +470,6 @@ const socksServer = net.createServer((clientSocket) => {
     if (clientIp && clientIp.includes('::ffff:')) clientIp = clientIp.split('::ffff:')[1];
 
     if (!isAllowed(clientIp)) {
-        // BLACKHOLE STRATEGY for SOCKS5
-        // Do not respond to the handshake. The phone will hang.
         return;
     }
 
@@ -403,7 +480,7 @@ const socksServer = net.createServer((clientSocket) => {
             clientSocket.end();
             return;
         }
-        clientSocket.write(Buffer.from([0x05, 0x00])); // No auth
+        clientSocket.write(Buffer.from([0x05, 0x00]));
 
         clientSocket.once('data', (reqData) => {
             if (reqData[0] !== 0x05 || reqData[1] !== 0x01) {
@@ -451,7 +528,6 @@ const socksServer = net.createServer((clientSocket) => {
                         bytesTransferred = 0;
                     }
                     if (!isAllowed(clientIp)) {
-                        // Freeze the stream mid-connection
                         clientSocket.pause();
                         if (serverSocket) serverSocket.pause();
                     }
@@ -484,7 +560,6 @@ socksServer.listen(1080, '0.0.0.0', () => {
 
 process.on('uncaughtException', (err) => {
     if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || err.code === 'ETIMEDOUT') {
-        // Ignore expected network errors
         return;
     }
     console.error('Unhandled Exception:', err);

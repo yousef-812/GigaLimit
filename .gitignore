@@ -20,7 +20,11 @@ mobile_app/tun2socks/*.exe
 # Server
 server/node_modules/
 server/giga_limit_db.json
+server/giga_limit_db.json.bak
 server/admin_credentials.txt
+server/GigaLimit_Server.exe
+server/server.key
+server/server.cert
 
 # IDE
 .vscode/

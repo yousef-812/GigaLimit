@@ -3,7 +3,10 @@ const path = require('path');
 const crypto = require('crypto');
 
 // Save the database file in the same directory where the executable is run
-const dbPath = path.join(process.cwd(), 'giga_limit_db.json');
+const appDir = typeof process.pkg !== 'undefined'
+    ? path.dirname(process.execPath)
+    : process.cwd();
+const dbPath = path.join(appDir, 'giga_limit_db.json');
 
 const generatePassword = () => {
     return crypto.randomBytes(6).toString('base64url');
@@ -27,13 +30,19 @@ if (fs.existsSync(dbPath)) {
     }
 }
 
+const save = () => {
+    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+};
+
 if (!data.settings.admin_password) {
     data.settings.admin_password = generatePassword();
-    const credPath = path.join(process.cwd(), 'admin_credentials.txt');
-    fs.writeFileSync(credPath, `Admin Password: ${data.settings.admin_password}\n`);
-    console.log(`[AUTH] Admin password generated: ${data.settings.admin_password}`);
-    console.log(`[AUTH] Saved to: ${credPath}`);
+    save();
 }
+
+const credPath = path.join(appDir, 'admin_credentials.txt');
+fs.writeFileSync(credPath, `Admin Password: ${data.settings.admin_password}\n`);
+console.log(`[AUTH] Admin password: ${data.settings.admin_password}`);
+console.log(`[AUTH] Saved to: ${credPath}`);
 
 if (!data.settings.global_daily_limit_mb) data.settings.global_daily_limit_mb = 1024;
 if (!data.settings.global_weekly_limit_mb) data.settings.global_weekly_limit_mb = 7168;
@@ -44,10 +53,6 @@ const getLocalDateString = () => {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-};
-
-const save = () => {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
 };
 
 // Ensure initial save

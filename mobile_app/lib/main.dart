@@ -248,8 +248,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> result) {
       if (result.contains(ConnectivityResult.none)) {
         _showNotification('تنبيه انقطاع الشبكة 🚨', 'تم تغير الشبكة أو انقطاع الاتصال! ارجع للتطبيق أو تأكد من الـ VPN ليعمل الإنترنت.');
+      } else {
+        _pingServer();
       }
     });
+  }
+
+  Future<void> _pingServer() async {
+    if (serverIp.isEmpty || deviceId.isEmpty) return;
+    try {
+      await http.post(
+        Uri.parse('https://$serverIp:3000/api/ping'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'device_id': deviceId}),
+      );
+    } catch (e) {
+      print('Ping failed: $e');
+    }
   }
 
   Future<void> _showNotification(String title, String body) async {
@@ -293,6 +308,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       deviceId = prefs.getString('device_id') ?? '';
     });
     _fetchStats();
+    _pingServer();
   }
 
   Future<void> _fetchStats() async {

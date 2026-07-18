@@ -12,11 +12,7 @@
   "bin": "index.js",
   "pkg": {
     "assets": [
-      "public/**/*",
-      "public/app.html",
-      "public/index.html",
-      "server.key",
-      "server.cert"
+      "public_bundle.js"
     ]
   },
   "type": "commonjs",
