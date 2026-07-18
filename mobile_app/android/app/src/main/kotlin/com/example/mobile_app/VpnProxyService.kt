@@ -61,8 +61,6 @@ class VpnProxyService : VpnService() {
         builder.setMtu(1500)
         builder.setBlocking(true)
 
-        builder.setConfigureIntent(null)
-
         try {
             vpnInterface = builder.establish()
         } catch (e: Exception) {
