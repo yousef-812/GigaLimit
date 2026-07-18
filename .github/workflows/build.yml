@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,8 +33,7 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w" -trimpath -o ../android/app/src/main/assets/tun2socks_armeabi-v7a .
 
       - name: Verify binaries
-        run: |
-          ls -lh mobile_app/android/app/src/main/assets/tun2socks_*
+        run: ls -lh mobile_app/android/app/src/main/assets/tun2socks_*
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -53,9 +55,17 @@ jobs:
         working-directory: mobile_app
         run: flutter build apk --release
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Create Tag
+        run: |
+          TAG="v1.0.0-${{ github.run_number }}"
+          git tag $TAG
+          git push origin $TAG
+
+      - name: Release APK
+        uses: softprops/action-gh-release@v2
         with:
-          name: GigaLimit-APK
-          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+          tag_name: v1.0.0-${{ github.run_number }}
+          name: "GigaLimit v1.0.0-${{ github.run_number }}"
+          files: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
