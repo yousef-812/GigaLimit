@@ -8,8 +8,15 @@ import java.io.FileOutputStream
 object AssetHelper {
     private const val TAG = "AssetHelper"
 
+    fun getBinDir(context: Context): File {
+        val binDir = context.getDir("bin", Context.MODE_PRIVATE)
+        if (!binDir.exists()) binDir.mkdirs()
+        return binDir
+    }
+
     fun extractBinary(context: Context, assetName: String): File? {
-        val outFile = File(context.filesDir, assetName)
+        val binDir = getBinDir(context)
+        val outFile = File(binDir, assetName)
 
         if (outFile.exists() && outFile.canExecute()) {
             Log.d(TAG, "Binary already extracted: ${outFile.absolutePath}")
@@ -24,13 +31,9 @@ object AssetHelper {
             }
 
             Runtime.getRuntime().exec(arrayOf("chmod", "755", outFile.absolutePath)).waitFor()
+            outFile.setExecutable(true, false)
 
-            if (!outFile.canExecute()) {
-                Log.w(TAG, "chmod failed, trying setExecutable")
-                outFile.setExecutable(true, false)
-            }
-
-            Log.i(TAG, "Extracted binary: ${outFile.absolutePath} (${outFile.length()} bytes)")
+            Log.i(TAG, "Extracted binary: ${outFile.absolutePath} (${outFile.length()} bytes, executable=${outFile.canExecute()})")
             outFile
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract $assetName", e)

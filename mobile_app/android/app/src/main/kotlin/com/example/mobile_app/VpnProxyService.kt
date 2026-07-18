@@ -107,7 +107,7 @@ class VpnProxyService : VpnService() {
                 fd.toString(),
                 socksAddr
             )
-            pb.directory(filesDir)
+            pb.directory(AssetHelper.getBinDir(this))
             pb.redirectErrorStream(true)
 
             tun2socksProcess = pb.start()
