@@ -75,7 +75,7 @@ app.post('/api/clear_notification', (req, res) => {
     }
 });
 
-app.all('/api/status/:device_id', (req, res) => {
+app.get('/api/status/:device_id', (req, res) => {
     const device_id = req.params.device_id;
     const ip = getCleanIp(req);
     const today = db.getLocalDateString();
@@ -94,18 +94,6 @@ app.all('/api/status/:device_id', (req, res) => {
     const daily_limit_bytes = user.daily_limit_mb * 1024 * 1024;
     const weekly_limit_bytes = (user.weekly_limit_mb || (user.daily_limit_mb * 7)) * 1024 * 1024;
     
-    // Calculate if the client should take a screenshot right now
-    const { current_app, is_screen_on, is_locked } = req.body || {};
-    let take_screenshot = false;
-
-    if (user.monitoring_enabled && is_screen_on && !is_locked && current_app) {
-        const targetApps = db.getSetting('target_apps') || [];
-        const isSocialApp = targetApps.some(app => current_app.toLowerCase().includes(app.toLowerCase()));
-        if (isSocialApp) {
-            take_screenshot = true;
-        }
-    }
-    
     res.json({
         user,
         usage_today_bytes: bytes_used,
@@ -113,9 +101,7 @@ app.all('/api/status/:device_id', (req, res) => {
         weekly_usage_bytes: weekly_bytes_used,
         weekly_limit_bytes: weekly_limit_bytes,
         can_connect: user.status === 'unlimited' || (user.status === 'active' && bytes_used < daily_limit_bytes && weekly_bytes_used < weekly_limit_bytes),
-        pending_notification: user.pending_notification || null,
-        monitoring_enabled: user.monitoring_enabled || false,
-        take_screenshot: take_screenshot
+        pending_notification: user.pending_notification || null
     });
 });
 
@@ -213,76 +199,6 @@ app.post('/api/admin/delete_user', adminAuth, (req, res) => {
     }
 });
 
-app.post('/api/admin/toggle_monitoring', adminAuth, (req, res) => {
-    const { id, enabled } = req.body;
-    db.setMonitoring(id, enabled);
-    res.json({ success: true });
-});
-
-app.post('/api/upload_screenshot', express.raw({ type: 'image/jpeg', limit: '5mb' }), (req, res) => {
-    const device_id = req.headers['x-device-id'];
-    if (!device_id || !req.body || !req.body.length) {
-        return res.status(400).json({ error: 'Missing data' });
-    }
-    
-    const user = db.getUserByDeviceId(device_id);
-    if (!user || !user.monitoring_enabled) {
-        return res.status(403).json({ error: 'Monitoring not enabled' });
-    }
-
-    const fs = require('fs');
-    const path = require('path');
-    const today = db.getLocalDateString();
-    
-    const baseDir = 'D:\\Alaa';
-    if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true });
-    
-    const deviceDir = path.join(baseDir, user.name);
-    if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir);
-    
-    const dateDir = path.join(deviceDir, today);
-    if (!fs.existsSync(dateDir)) fs.mkdirSync(dateDir);
-    
-    const timestamp = Date.now();
-    const filePath = path.join(dateDir, `${timestamp}.jpg`);
-    
-    fs.writeFileSync(filePath, req.body);
-    res.json({ success: true });
-});
-
-// Auto Archiver (Runs once a day)
-setInterval(() => {
-    const fs = require('fs');
-    const path = require('path');
-    const { exec } = require('child_process');
-    const baseDir = 'D:\\Alaa';
-    if (!fs.existsSync(baseDir)) return;
-    
-    const users = fs.readdirSync(baseDir);
-    const now = Date.now();
-    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
-    
-    users.forEach(user => {
-        const userPath = path.join(baseDir, user);
-        if (!fs.statSync(userPath).isDirectory()) return;
-        
-        const dates = fs.readdirSync(userPath);
-        dates.forEach(date => {
-            const datePath = path.join(userPath, date);
-            if (!fs.statSync(datePath).isDirectory()) return;
-            
-            const timeDiff = now - new Date(date).getTime();
-            if (timeDiff > SEVEN_DAYS) {
-                const zipPath = path.join(userPath, `${date}.zip`);
-                if (!fs.existsSync(zipPath)) {
-                    exec(`powershell Compress-Archive -Path '${datePath}\\*' -DestinationPath '${zipPath}' -Force`, (err) => {
-                        if (!err) fs.rmSync(datePath, { recursive: true, force: true });
-                    });
-                }
-            }
-        });
-    });
-}, 24 * 60 * 60 * 1000);
 
 // --- PROXY ENGINE ---
 const proxyServer = http.createServer((req, res) => {
@@ -449,11 +365,13 @@ try {
     };
     https.createServer(sslOptions, app).listen(API_PORT, '0.0.0.0', () => {
         console.log(`Giga Limit API running securely on HTTPS port ${API_PORT}`);
+        console.log(`Admin login: http://localhost:${API_PORT} (password in admin_credentials.txt)`);
     });
 } catch (e) {
     console.log('SSL certs not found, falling back to HTTP');
     app.listen(API_PORT, '0.0.0.0', () => {
         console.log(`Giga Limit API running on port ${API_PORT}`);
+        console.log(`Admin login: http://localhost:${API_PORT} (password in admin_credentials.txt)`);
     });
 }
 

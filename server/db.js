@@ -1,16 +1,16 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // Save the database file in the same directory where the executable is run
 const dbPath = path.join(process.cwd(), 'giga_limit_db.json');
 
+const generatePassword = () => {
+    return crypto.randomBytes(6).toString('base64url');
+};
+
 let data = {
-    settings: {
-        admin_password: 'admin123',
-        global_daily_limit_mb: 1024,
-        global_weekly_limit_mb: 7168,
-        target_apps: ["instagram", "whatsapp", "facebook", "snapchat", "tiktok"]
-    },
+    settings: {},
     users: [], // { id, name, device_id, current_ip, status, daily_limit_mb }
     usage: [] // { user_id, date, bytes_used }
 };
@@ -22,13 +22,21 @@ if (fs.existsSync(dbPath)) {
         if (data.settings && data.settings.global_total_bytes_used === undefined) {
             data.settings.global_total_bytes_used = 0;
         }
-        if (data.settings && data.settings.target_apps === undefined) {
-            data.settings.target_apps = ["instagram", "whatsapp", "facebook", "snapchat", "tiktok"];
-        }
     } catch (e) {
         console.error('Error reading db file, starting fresh.');
     }
 }
+
+if (!data.settings.admin_password) {
+    data.settings.admin_password = generatePassword();
+    const credPath = path.join(process.cwd(), 'admin_credentials.txt');
+    fs.writeFileSync(credPath, `Admin Password: ${data.settings.admin_password}\n`);
+    console.log(`[AUTH] Admin password generated: ${data.settings.admin_password}`);
+    console.log(`[AUTH] Saved to: ${credPath}`);
+}
+
+if (!data.settings.global_daily_limit_mb) data.settings.global_daily_limit_mb = 1024;
+if (!data.settings.global_weekly_limit_mb) data.settings.global_weekly_limit_mb = 7168;
 
 const getLocalDateString = () => {
     const d = new Date();
@@ -104,16 +112,6 @@ module.exports = {
         let user = data.users.find(u => u.id === parseInt(id));
         if (user) {
             delete user.pending_notification;
-            save();
-            return true;
-        }
-        return false;
-    },
-
-    setMonitoring: (id, enabled) => {
-        let user = data.users.find(u => u.id === parseInt(id));
-        if (user) {
-            user.monitoring_enabled = enabled;
             save();
             return true;
         }

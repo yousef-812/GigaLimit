@@ -480,9 +480,6 @@
                         <button class="btn-small" style="grid-column: span 2; margin-top: 0.5rem; background: var(--primary); color: var(--bg);" onclick="sendNotification(${u.id})">
                             Send Notification 🔔
                         </button>
-                        <button class="btn-small" style="grid-column: span 2; margin-top: 0.5rem; background: ${u.monitoring_enabled ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'}; color: ${u.monitoring_enabled ? 'var(--danger)' : 'var(--success)'};" onclick="toggleMonitoring(${u.id}, ${!u.monitoring_enabled})">
-                            ${u.monitoring_enabled ? 'Disable Monitoring ❌' : 'Enable Monitoring 👁️'}
-                        </button>
                     </div>
                 `;
             });
@@ -507,15 +504,6 @@
                 });
                 alert("Notification Sent!");
             }
-        }
-
-        async function toggleMonitoring(id, enabled) {
-            await fetch('/api/admin/toggle_monitoring', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
-                body: JSON.stringify({ id, enabled })
-            });
-            loadUsers();
         }
 
         async function renewDaily(id) {

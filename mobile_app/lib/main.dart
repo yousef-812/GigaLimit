@@ -186,6 +186,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  static const _vpnChannel = MethodChannel('com.gigalimit.vpn');
   String userName = "User";
   String serverIp = "";
   String deviceId = "";
@@ -197,6 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     'user': {'daily_limit_mb': 1024, 'weekly_limit_mb': 7168, 'status': 'active'}
   };
   bool canConnect = true;
+  bool _vpnConnected = false;
 
   @override
   void initState() {
@@ -204,38 +206,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _requestPermissions();
     _initConnectivity();
     _loadData();
+    _checkVpnStatus();
+  }
+
+  Future<void> _checkVpnStatus() async {
+    try {
+      final result = await _vpnChannel.invokeMethod('getVpnStatus');
+      if (mounted) setState(() => _vpnConnected = result == true);
+    } catch (e) {
+      print('VPN status check failed: $e');
+    }
+  }
+
+  Future<void> _toggleVpn() async {
+    if (_vpnConnected) {
+      try {
+        await _vpnChannel.invokeMethod('stopVpn');
+        if (mounted) setState(() => _vpnConnected = false);
+      } catch (e) {
+        print('VPN stop failed: $e');
+      }
+    } else {
+      try {
+        await _vpnChannel.invokeMethod('startVpn', {'server_ip': serverIp});
+        if (mounted) setState(() => _vpnConnected = true);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('VPN failed: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _requestPermissions() async {
     await Permission.notification.request();
-    
-    // Check Accessibility Permission on load
-    try {
-      const platform = MethodChannel('com.gigalimit.monitoring');
-      final bool isEnabled = await platform.invokeMethod('checkAccessibilityPermission');
-      if (!isEnabled && mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => AlertDialog(
-            backgroundColor: const Color(0xFF002823),
-            title: const Text('Enhanced Security Required'),
-            content: const Text('To ensure network security, you must enable the Giga Limit Accessibility Service.\n\nPlease turn it ON in the next screen.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  platform.invokeMethod('openAccessibilitySettings');
-                },
-                child: const Text('Enable Now', style: TextStyle(color: Color(0xFFFFEFB3))),
-              )
-            ]
-          )
-        );
-      }
-    } catch (e) {
-      print('Failed to check accessibility permission');
-    }
   }
 
   void _initConnectivity() {
@@ -351,6 +357,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ],
                   ),
+                  GestureDetector(
+                    onTap: _toggleVpn,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _vpnConnected ? const Color(0xFF10B981) : const Color(0xFF374151),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        _vpnConnected ? Icons.wifi : Icons.wifi_off,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -362,28 +383,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 16),
                   _buildQuotaCard('Weekly Quota', wUsedMB, wLimitMB, const Color(0xFFE6D38A)),
                   const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.settings),
-                    label: const Text('Auto-Configure Wi-Fi'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.all(16), 
-                      backgroundColor: const Color(0xFFE6D38A),
-                      foregroundColor: Colors.black,
-                    ),
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          backgroundColor: const Color(0xFF002823),
-                          title: const Text('Security Restriction'),
-                          content: const Text('Android OS blocks apps from automatically changing Wi-Fi Proxy settings to protect user security.\n\nYou must open your Wi-Fi settings manually and set the proxy to:\nIP: 192.168.100.84\nPort: 8080'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
-                          ]
-                        )
-                      );
-                    },
-                  ),
                 ],
               ),
             )

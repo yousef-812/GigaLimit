@@ -1,0 +1,32 @@
+# Flutter
+mobile_app/.dart_tool/
+mobile_app/.packages
+mobile_app/build/
+mobile_app/.flutter-plugins
+mobile_app/.flutter-plugins-dependencies
+mobile_app/pubspec.lock
+mobile_app/.metadata
+mobile_app/android/.gradle/
+mobile_app/android/app/build/
+mobile_app/android/local.properties
+mobile_app/android/app/src/main/assets/tun2socks_*
+mobile_app/android/**/GeneratedPluginRegistrant.java
+mobile_app/android/**/GeneratedPluginRegistrant.kt
+
+# Go tun2socks
+mobile_app/tun2socks/tun2socks
+mobile_app/tun2socks/*.exe
+
+# Server
+server/node_modules/
+server/giga_limit_db.json
+server/admin_credentials.txt
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
