@@ -35,7 +35,7 @@ foreach ($b in $builds) {
     $outFile = Join-Path $assetsDir "tun2socks_$($b.Suffix)"
 
     $env:CGO_ENABLED = "0"
-    $env:GOOS = "android"
+    $env:GOOS = "linux"
     $env:GOARCH = $b.Arch
     $env:GOARM = $b.GOARM
 
