@@ -282,7 +282,7 @@ func handleTCP(ctx context.Context, req *tcp.ForwarderRequest, socksHost string,
 	dstIP := net.IP(id.LocalAddress.AsSlice())
 	dstPort := id.LocalPort
 
-	var wq tcpip.WaitQueue
+	var wq waiter.Queue
 	ep, tcpipErr := req.CreateEndpoint(&wq)
 	if tcpipErr != nil {
 		req.Complete(true)
@@ -331,7 +331,7 @@ func handleUDP(ctx context.Context, req *udp.ForwarderRequest, socksHost string,
 	dstIP := net.IP(id.LocalAddress.AsSlice())
 	dstPort := id.LocalPort
 
-	var wq tcpip.WaitQueue
+	var wq waiter.Queue
 	ep, tcpipErr := req.CreateEndpoint(&wq)
 	if tcpipErr != nil {
 		return
