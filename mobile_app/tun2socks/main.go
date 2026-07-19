@@ -26,6 +26,7 @@ import (
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 	"github.com/sagernet/gvisor/pkg/tcpip/transport/tcp"
 	"github.com/sagernet/gvisor/pkg/tcpip/transport/udp"
+	"github.com/sagernet/gvisor/pkg/waiter"
 	"golang.org/x/sys/unix"
 )
 
