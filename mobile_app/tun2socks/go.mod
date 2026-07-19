@@ -1,6 +1,6 @@
 module tun2socks
 
-go 1.25
+go 1.24.1
 
 require (
 	github.com/sagernet/gvisor v0.0.0-20250811-sing-box-mod.1

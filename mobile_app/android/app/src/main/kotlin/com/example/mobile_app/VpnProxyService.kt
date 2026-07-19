@@ -11,9 +11,6 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import android.util.Log
-import java.io.BufferedReader
-import java.io.File
-import java.io.InputStreamReader
 
 class VpnProxyService : VpnService() {
 
@@ -26,9 +23,21 @@ class VpnProxyService : VpnService() {
             private set
     }
 
+    init {
+        try {
+            System.loadLibrary("tun2socks")
+            Log.i(TAG, "Loaded libtun2socks.so via JNI")
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "Failed to load libtun2socks.so", e)
+        }
+    }
+
+    private external fun startNativeTun2Socks(fd: Int, socksAddr: String): Int
+    private external fun stopNativeTun2Socks()
+
     private var vpnInterface: ParcelFileDescriptor? = null
-    private var tun2socksProcess: Process? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var vpnThread: Thread? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -91,57 +100,25 @@ class VpnProxyService : VpnService() {
         }
         val socksAddr = "$serverIp:1080"
 
-        val nativeDir = applicationInfo.nativeLibraryDir
-        val binaryFile = File(nativeDir, "libtun2socks.so")
-        Log.i(TAG, "Looking for tun2socks: ${binaryFile.absolutePath} (exists=${binaryFile.exists()}, canExec=${binaryFile.canExecute()})")
-
-        if (!binaryFile.exists()) {
-            Log.e(TAG, "tun2socks binary not found in nativeLibraryDir: $nativeDir")
-            Log.e(TAG, "Files in nativeLibDir: ${File(nativeDir).listFiles()?.joinToString { it.name } ?: "none"}")
-            stopSelf()
-            return
-        }
-
-        try {
-            val pb = ProcessBuilder(
-                binaryFile.absolutePath,
-                fd.toString(),
-                socksAddr
-            )
-            pb.directory(File(nativeDir))
-            pb.redirectErrorStream(true)
-
-            tun2socksProcess = pb.start()
-
-            Thread {
-                try {
-                    val reader = BufferedReader(InputStreamReader(tun2socksProcess!!.inputStream))
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
-                        Log.d(TAG, "tun2socks: $line")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "tun2socks output error", e)
+        vpnThread = Thread({
+            try {
+                Log.i(TAG, "Calling native startTun2Socks: fd=$fd, addr=$socksAddr")
+                val result = startNativeTun2Socks(fd, socksAddr)
+                Log.i(TAG, "native startTun2Socks returned: $result")
+                if (isRunning) {
+                    stopVpn()
                 }
-            }.start()
-
-            Thread {
-                try {
-                    val exitCode = tun2socksProcess!!.waitFor()
-                    Log.w(TAG, "tun2socks exited with code: $exitCode")
-                    if (isRunning) {
-                        stopVpn()
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "tun2socks wait error", e)
+            } catch (e: Exception) {
+                Log.e(TAG, "tun2socks native error", e)
+                if (isRunning) {
+                    stopVpn()
                 }
-            }.start()
+            }
+        }, "tun2socks-engine")
+        vpnThread!!.isDaemon = true
+        vpnThread!!.start()
 
-            Log.i(TAG, "tun2socks started, proxy: socks5://$socksAddr, fd: $fd")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start tun2socks", e)
-            stopSelf()
-        }
+        Log.i(TAG, "tun2socks JNI started, proxy: socks5://$socksAddr, fd: $fd")
     }
 
     private fun createNotificationChannel() {
@@ -205,10 +182,16 @@ class VpnProxyService : VpnService() {
     private fun stopVpn() {
         isRunning = false
         try {
-            tun2socksProcess?.destroy()
-            tun2socksProcess = null
+            stopNativeTun2Socks()
         } catch (e: Exception) {
-            Log.e(TAG, "Error killing tun2socks", e)
+            Log.e(TAG, "Error stopping native tun2socks", e)
+        }
+
+        try {
+            vpnThread?.interrupt()
+            vpnThread = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error interrupting vpn thread", e)
         }
 
         try {

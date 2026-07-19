@@ -28,6 +28,59 @@ jobs:
           flutter-version: '3.44.0'
           channel: 'stable'
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager "ndk;27.2.12479018"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> $GITHUB_ENV
+
+      - name: Build tun2socks c-shared for arm64-v8a
+        working-directory: mobile_app/tun2socks
+        run: |
+          export CGO_ENABLED=1
+          export GOOS=android
+          export GOARCH=arm64
+          export CC=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang
+          export CXX=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang++
+          go build -v -buildmode=c-shared -o ../android/app/src/main/jniLibs/arm64-v8a/libtun2socks.so . 2>&1
+          echo "Built arm64-v8a"
+
+      - name: Build tun2socks c-shared for armeabi-v7a
+        working-directory: mobile_app/tun2socks
+        run: |
+          export CGO_ENABLED=1
+          export GOOS=android
+          export GOARCH=arm
+          export GOARM=7
+          export CC=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi35-clang
+          export CXX=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi35-clang++
+          go build -v -buildmode=c-shared -o ../android/app/src/main/jniLibs/armeabi-v7a/libtun2socks.so . 2>&1
+          echo "Built armeabi-v7a"
+
+      - name: Build tun2socks c-shared for x86_64
+        working-directory: mobile_app/tun2socks
+        run: |
+          export CGO_ENABLED=1
+          export GOOS=android
+          export GOARCH=amd64
+          export CC=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android35-clang
+          export CXX=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android35-clang++
+          go build -v -buildmode=c-shared -o ../android/app/src/main/jniLibs/x86_64/libtun2socks.so . 2>&1
+          echo "Built x86_64"
+
+      - name: Clean .h file from Go c-shared build
+        run: |
+          rm -f mobile_app/android/app/src/main/jniLibs/*/libtun2socks.h
+
       - name: Flutter pub get
         working-directory: mobile_app
         run: flutter pub get

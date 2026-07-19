@@ -1,5 +1,37 @@
 package main
 
+/*
+#cgo LDFLAGS: -llog
+#include <jni.h>
+#include <stdlib.h>
+#include <android/log.h>
+
+#define LOG_TAG "Tun2SocksNative"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+extern long goStartTun2Socks(int fd, const char* socksAddr);
+extern void goStopTun2Socks();
+
+JNIEXPORT jint JNICALL
+Java_com_example_mobile_1app_VpnProxyService_startNativeTun2Socks(
+    JNIEnv *env, jobject thiz, jint fd, jstring socksAddr) {
+    const char *addr = (*env)->GetStringUTFChars(env, socksAddr, NULL);
+    if (addr == NULL) { LOGE("Failed to get SOCKS address"); return -1; }
+    LOGI("Starting tun2socks: fd=%d addr=%s", fd, addr);
+    int result = (int)goStartTun2Socks(fd, addr);
+    (*env)->ReleaseStringUTFChars(env, socksAddr, addr);
+    return result;
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_mobile_1app_VpnProxyService_stopNativeTun2Socks(
+    JNIEnv *env, jobject thiz) {
+    LOGI("Stopping tun2socks");
+    goStopTun2Socks();
+}
+*/
+import "C"
 import (
 	"context"
 	"encoding/binary"
@@ -22,7 +54,6 @@ import (
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 	"github.com/sagernet/gvisor/pkg/tcpip/transport/tcp"
 	"github.com/sagernet/gvisor/pkg/tcpip/transport/udp"
-	"github.com/sagernet/gvisor/pkg/waiter"
 	"golang.org/x/sys/unix"
 )
 
@@ -42,31 +73,38 @@ var tcpBufPool = sync.Pool{
 	},
 }
 
-func main() {
-	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <tun_fd> <socks5_host:port>\n", os.Args[0])
-		os.Exit(1)
-	}
+var globalCancel context.CancelFunc
+var globalMu sync.Mutex
 
-	fd, err := strconv.Atoi(os.Args[1])
-	if err != nil {
-		log.Fatalf("Invalid fd: %v", err)
+//export goStartTun2Socks
+func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
+	globalMu.Lock()
+	if globalCancel != nil {
+		globalCancel()
 	}
+	globalCancel = nil
+	globalMu.Unlock()
 
-	socksAddr := os.Args[2]
-	host, portStr, err := net.SplitHostPort(socksAddr)
+	addr := C.GoString(socksAddr)
+	goFd := int(fd)
+
+	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Fatalf("Invalid socks5 address %q: %v", socksAddr, err)
+		log.Printf("tun2socks: invalid addr %q: %v", addr, err)
+		return -1
 	}
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		log.Fatalf("Invalid socks5 port: %v", err)
+		log.Printf("tun2socks: invalid port %q: %v", portStr, err)
+		return -1
 	}
 
-	log.Printf("tun2socks: fd=%d proxy=socks5://%s:%d", fd, host, port)
+	log.Printf("tun2socks: fd=%d proxy=socks5://%s:%d", goFd, host, port)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	globalMu.Lock()
+	globalCancel = cancel
+	globalMu.Unlock()
 
 	s := stack.New(stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
@@ -83,7 +121,8 @@ func main() {
 	ep := channel.New(channelSize, mtuVal, "")
 
 	if tcpipErr := s.CreateNIC(nicID, ep); tcpipErr != nil {
-		log.Fatalf("CreateNIC: %v", tcpipErr)
+		log.Printf("tun2socks: CreateNIC failed: %v", tcpipErr)
+		return -1
 	}
 
 	s.SetRouteTable([]tcpip.Route{
@@ -112,16 +151,18 @@ func main() {
 	})
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
-	dupFD, err := unix.Dup(fd)
+	dupFD, err := unix.Dup(goFd)
 	if err != nil {
 		s.Close()
-		log.Fatalf("dup fd: %v", err)
+		log.Printf("tun2socks: dup fd failed: %v", err)
+		return -1
 	}
 	unix.CloseOnExec(dupFD)
 	if err := unix.SetNonblock(dupFD, true); err != nil {
 		unix.Close(dupFD)
 		s.Close()
-		log.Fatalf("set nonblock: %v", err)
+		log.Printf("tun2socks: set nonblock failed: %v", err)
+		return -1
 	}
 	tunFile := os.NewFile(uintptr(dupFD), "tun")
 
@@ -173,10 +214,24 @@ func main() {
 		}
 	}()
 
+	go func() {
+		wg.Wait()
+		s.Close()
+		log.Printf("tun2socks: engine stopped")
+	}()
+
 	log.Printf("tun2socks: engine started")
-	wg.Wait()
-	s.Close()
-	log.Printf("tun2socks: engine stopped")
+	return 0
+}
+
+//export goStopTun2Socks
+func goStopTun2Socks() {
+	globalMu.Lock()
+	if globalCancel != nil {
+		globalCancel()
+		globalCancel = nil
+	}
+	globalMu.Unlock()
 }
 
 func socks5Handshake(conn net.Conn) error {
@@ -255,7 +310,7 @@ func handleTCP(ctx context.Context, req *tcp.ForwarderRequest, socksHost string,
 	dstIP := net.IP(id.LocalAddress.AsSlice())
 	dstPort := id.LocalPort
 
-	var wq waiter.Queue
+	var wq tcpip.WaitQueue
 	ep, tcpipErr := req.CreateEndpoint(&wq)
 	if tcpipErr != nil {
 		req.Complete(true)
@@ -304,7 +359,7 @@ func handleUDP(ctx context.Context, req *udp.ForwarderRequest, socksHost string,
 	dstIP := net.IP(id.LocalAddress.AsSlice())
 	dstPort := id.LocalPort
 
-	var wq waiter.Queue
+	var wq tcpip.WaitQueue
 	ep, tcpipErr := req.CreateEndpoint(&wq)
 	if tcpipErr != nil {
 		return
@@ -473,3 +528,5 @@ func pipeConn(a, b net.Conn) {
 	go pipe(a, b)
 	wg.Wait()
 }
+
+func main() {}
