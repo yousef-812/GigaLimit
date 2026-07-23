@@ -21,11 +21,13 @@ class VpnProxyService : VpnService() {
         const val ACTION_STOP = "com.example.mobile_app.STOP_VPN"
         var isRunning = false
             private set
+        private var nativeLibraryLoaded = false
     }
 
     init {
         try {
             System.loadLibrary("tun2socks")
+            nativeLibraryLoaded = true
             Log.i(TAG, "Loaded libtun2socks.so via JNI")
         } catch (e: UnsatisfiedLinkError) {
             Log.e(TAG, "Failed to load libtun2socks.so", e)
@@ -41,7 +43,6 @@ class VpnProxyService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        isRunning = true
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -60,6 +61,12 @@ class VpnProxyService : VpnService() {
     }
 
     private fun startVpn(serverIp: String) {
+        if (!nativeLibraryLoaded) {
+            Log.e(TAG, "libtun2socks.so is missing from this APK")
+            stopSelf()
+            return
+        }
+
         createNotificationChannel()
 
         val builder = Builder()
@@ -89,6 +96,7 @@ class VpnProxyService : VpnService() {
         startForeground(NOTIFICATION_ID, notification)
 
         acquireWakeLock()
+        isRunning = true
         startTun2socks(serverIp)
     }
 
@@ -108,7 +116,7 @@ class VpnProxyService : VpnService() {
                 if (isRunning) {
                     stopVpn()
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "tun2socks native error", e)
                 if (isRunning) {
                     stopVpn()
