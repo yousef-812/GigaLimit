@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -199,6 +200,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   };
   bool canConnect = true;
   bool _vpnConnected = false;
+  Timer? _vpnStatusTimer;
 
   @override
   void initState() {
@@ -207,6 +209,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _initConnectivity();
     _loadData();
     _checkVpnStatus();
+    _vpnStatusTimer = Timer.periodic(const Duration(seconds: 2), (_) => _checkVpnStatus());
+  }
+
+  @override
+  void dispose() {
+    _vpnStatusTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkVpnStatus() async {

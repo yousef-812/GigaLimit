@@ -165,6 +165,7 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer cancel()
 		buf := make([]byte, mtuVal+4)
 		for {
 			n, readErr := tunFile.Read(buf)
@@ -208,13 +209,14 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 		}
 	}()
 
-	go func() {
-		wg.Wait()
-		s.Close()
-		log.Printf("tun2socks: engine stopped")
-	}()
-
 	log.Printf("tun2socks: engine started")
+	// This JNI call must remain active for the VPN lifetime. Returning here is
+	// interpreted by VpnProxyService as an unexpected engine shutdown.
+	wg.Wait()
+	cancel()
+	tunFile.Close()
+	s.Close()
+	log.Printf("tun2socks: engine stopped")
 	return 0
 }
 
