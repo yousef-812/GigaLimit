@@ -152,12 +152,6 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 		return -1
 	}
 	unix.CloseOnExec(dupFD)
-	if err := unix.SetNonblock(dupFD, true); err != nil {
-		unix.Close(dupFD)
-		s.Close()
-		log.Printf("tun2socks: set nonblock failed: %v", err)
-		return -1
-	}
 	tunFile := os.NewFile(uintptr(dupFD), "tun")
 
 	var wg sync.WaitGroup
@@ -170,6 +164,7 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 		for {
 			n, readErr := tunFile.Read(buf)
 			if readErr != nil {
+				log.Printf("tun2socks: TUN read stopped: %v", readErr)
 				return
 			}
 			if n == 0 {
