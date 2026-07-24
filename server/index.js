@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 const net = require('net');
+const dgram = require('dgram');
 const url = require('url');
 const fs = require('fs');
 const os = require('os');
@@ -483,8 +484,13 @@ const socksServer = net.createServer((clientSocket) => {
         clientSocket.write(Buffer.from([0x05, 0x00]));
 
         clientSocket.once('data', (reqData) => {
-            if (reqData[0] !== 0x05 || reqData[1] !== 0x01) {
+            if (reqData[0] !== 0x05 || (reqData[1] !== 0x01 && reqData[1] !== 0x03)) {
                 clientSocket.end();
+                return;
+            }
+
+            if (reqData[1] === 0x03) {
+                handleSocksUdpAssociation(clientSocket, clientIp);
                 return;
             }
 
@@ -553,6 +559,70 @@ const socksServer = net.createServer((clientSocket) => {
         });
     });
 });
+
+function handleSocksUdpAssociation(clientSocket, clientIp) {
+    const relay = dgram.createSocket('udp4');
+    let clientUdpPort = null;
+
+    const closeRelay = () => {
+        try { relay.close(); } catch (_) {}
+    };
+
+    clientSocket.once('close', closeRelay);
+    clientSocket.once('error', closeRelay);
+
+    relay.on('error', closeRelay);
+    relay.on('message', (message, rinfo) => {
+        // The first UDP packet identifies the source port selected by the client.
+        if (rinfo.address === clientIp && (clientUdpPort === null || rinfo.port === clientUdpPort)) {
+            clientUdpPort = rinfo.port;
+            if (message.length < 10 || message[0] !== 0 || message[1] !== 0 || message[2] !== 0) return;
+
+            const atyp = message[3];
+            let host;
+            let portOffset;
+            if (atyp === 0x01) {
+                host = `${message[4]}.${message[5]}.${message[6]}.${message[7]}`;
+                portOffset = 8;
+            } else if (atyp === 0x03) {
+                const domainLength = message[4];
+                if (message.length < 5 + domainLength + 2) return;
+                host = message.toString('utf8', 5, 5 + domainLength);
+                portOffset = 5 + domainLength;
+            } else {
+                return;
+            }
+
+            if (message.length < portOffset + 2) return;
+            const port = message.readUInt16BE(portOffset);
+            relay.send(message.subarray(portOffset + 2), port, host);
+            return;
+        }
+
+        if (clientUdpPort === null || rinfo.address === clientIp) return;
+        const octets = rinfo.address.split('.').map(Number);
+        if (octets.length !== 4 || octets.some(Number.isNaN)) return;
+        const header = Buffer.from([
+            0x00, 0x00, 0x00, 0x01,
+            ...octets,
+            rinfo.port >> 8, rinfo.port & 0xff
+        ]);
+        relay.send(Buffer.concat([header, message]), clientUdpPort, clientIp);
+    });
+
+    relay.bind(0, '0.0.0.0', () => {
+        const relayPort = relay.address().port;
+        let localIp = clientSocket.localAddress || '0.0.0.0';
+        if (localIp.startsWith('::ffff:')) localIp = localIp.substring(7);
+        const octets = localIp.split('.').map(Number);
+        const replyIp = octets.length === 4 && octets.every(Number.isFinite) ? octets : [0, 0, 0, 0];
+        clientSocket.write(Buffer.from([
+            0x05, 0x00, 0x00, 0x01,
+            ...replyIp,
+            relayPort >> 8, relayPort & 0xff
+        ]));
+    });
+}
 
 socksServer.listen(1080, '0.0.0.0', () => {
     console.log(`Giga Limit SOCKS5 Engine running on port 1080`);

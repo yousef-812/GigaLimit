@@ -37,6 +37,16 @@ class VpnProxyService : VpnService() {
     private external fun startNativeTun2Socks(fd: Int, socksAddr: String): Int
     private external fun stopNativeTun2Socks()
 
+    // The native engine must reach the SOCKS server through the physical network,
+    // not through this VPN, otherwise it routes its own proxy connection in a loop.
+    fun protectSocket(fd: Int): Boolean {
+        val protected = protect(fd)
+        if (!protected) {
+            Log.e(TAG, "Failed to protect SOCKS socket: fd=$fd")
+        }
+        return protected
+    }
+
     private var vpnInterface: ParcelFileDescriptor? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var vpnThread: Thread? = null

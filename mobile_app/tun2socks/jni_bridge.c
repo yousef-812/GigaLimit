@@ -6,9 +6,73 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+static JavaVM *java_vm;
+static jobject vpn_service;
+static jmethodID protect_socket_method;
+
+static int set_vpn_service(JNIEnv *env, jobject service) {
+    if ((*env)->GetJavaVM(env, &java_vm) != JNI_OK) {
+        LOGE("Failed to get Java VM");
+        return 0;
+    }
+
+    if (vpn_service != NULL) {
+        (*env)->DeleteGlobalRef(env, vpn_service);
+    }
+    vpn_service = (*env)->NewGlobalRef(env, service);
+    if (vpn_service == NULL) {
+        LOGE("Failed to retain VPN service");
+        return 0;
+    }
+
+    jclass service_class = (*env)->GetObjectClass(env, service);
+    protect_socket_method = (*env)->GetMethodID(env, service_class, "protectSocket", "(I)Z");
+    (*env)->DeleteLocalRef(env, service_class);
+    if (protect_socket_method == NULL) {
+        LOGE("Failed to find VpnProxyService.protectSocket");
+        return 0;
+    }
+    return 1;
+}
+
+// Called from Go before connecting to the SOCKS server. Go worker threads are
+// attached to the JVM on demand so VpnService.protect can be called safely.
+int protectSocket(int fd) {
+    if (java_vm == NULL || vpn_service == NULL || protect_socket_method == NULL) {
+        LOGE("VPN service is not ready to protect socket");
+        return 0;
+    }
+
+    JNIEnv *env = NULL;
+    int attached = 0;
+    jint status = (*java_vm)->GetEnv(java_vm, (void **)&env, JNI_VERSION_1_6);
+    if (status == JNI_EDETACHED) {
+        if ((*java_vm)->AttachCurrentThread(java_vm, &env, NULL) != JNI_OK) {
+            LOGE("Failed to attach Go thread to JVM");
+            return 0;
+        }
+        attached = 1;
+    } else if (status != JNI_OK) {
+        LOGE("Failed to access JVM from Go thread");
+        return 0;
+    }
+
+    jboolean protected = (*env)->CallBooleanMethod(env, vpn_service, protect_socket_method, (jint)fd);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionDescribe(env);
+        (*env)->ExceptionClear(env);
+        protected = JNI_FALSE;
+    }
+    if (attached) {
+        (*java_vm)->DetachCurrentThread(java_vm);
+    }
+    return protected == JNI_TRUE;
+}
+
 JNIEXPORT jint JNICALL
 Java_com_example_mobile_1app_VpnProxyService_startNativeTun2Socks(
     JNIEnv *env, jobject thiz, jint fd, jstring socksAddr) {
+    if (!set_vpn_service(env, thiz)) { return -1; }
     const char *addr = (*env)->GetStringUTFChars(env, socksAddr, NULL);
     if (addr == NULL) { LOGE("Failed to get SOCKS address"); return -1; }
     LOGI("Starting tun2socks: fd=%d addr=%s", fd, addr);

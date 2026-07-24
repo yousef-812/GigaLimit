@@ -2,6 +2,7 @@ package main
 
 /*
 #cgo LDFLAGS: -llog
+int protectSocket(int fd);
 */
 import "C"
 import (
@@ -14,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/sagernet/gvisor/pkg/buffer"
@@ -48,6 +50,25 @@ var tcpBufPool = sync.Pool{
 
 var globalCancel context.CancelFunc
 var globalMu sync.Mutex
+
+func protectedControl(network, address string, rawConn syscall.RawConn) error {
+	var protectErr error
+	if err := rawConn.Control(func(fd uintptr) {
+		if C.protectSocket(C.int(fd)) == 0 {
+			protectErr = fmt.Errorf("VpnService.protect failed for %s socket", network)
+		}
+	}); err != nil {
+		return err
+	}
+	return protectErr
+}
+
+func protectedDialer() net.Dialer {
+	return net.Dialer{
+		Timeout: dialTimeout,
+		Control: protectedControl,
+	}
+}
 
 //export goStartTun2Socks
 func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
@@ -293,7 +314,7 @@ func handleTCP(ctx context.Context, req *tcp.ForwarderRequest, socksHost string,
 	ep.SocketOptions().SetKeepAlive(false)
 	gonetConn := gonet.NewTCPConn(&wq, ep)
 
-	d := net.Dialer{Timeout: dialTimeout}
+	d := protectedDialer()
 	proxyConn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", socksHost, socksPort))
 	if err != nil {
 		log.Printf("socks5 dial failed: %v", err)
@@ -339,7 +360,7 @@ func handleUDP(ctx context.Context, req *udp.ForwarderRequest, socksHost string,
 	}
 	gonetConn := gonet.NewUDPConn(&wq, ep)
 
-	d := net.Dialer{Timeout: dialTimeout}
+	d := protectedDialer()
 	ctrlConn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", socksHost, socksPort))
 	if err != nil {
 		gonetConn.Close()
@@ -357,8 +378,16 @@ func handleUDP(ctx context.Context, req *udp.ForwarderRequest, socksHost string,
 		return
 	}
 
-	localUDP, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	listenConfig := net.ListenConfig{Control: protectedControl}
+	packetConn, err := listenConfig.ListenPacket(ctx, "udp", "127.0.0.1:0")
 	if err != nil {
+		ctrlConn.Close()
+		gonetConn.Close()
+		return
+	}
+	localUDP, ok := packetConn.(*net.UDPConn)
+	if !ok {
+		packetConn.Close()
 		ctrlConn.Close()
 		gonetConn.Close()
 		return
