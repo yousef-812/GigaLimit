@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "build:bundle": "node build_bundle.js",
+    "build:exe": "npm run build:bundle && npx --yes pkg@5.8.1 index.js --targets node18-win-x64 --output GigaLimit_Server.exe"
   },
   "keywords": [],
   "author": "",

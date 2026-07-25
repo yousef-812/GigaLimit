@@ -19,6 +19,16 @@ const app = express();
 const API_PORT = 3000;
 const PROXY_PORT = 8080;
 const debugLogPath = path.join(appDir, 'vpn_debug.log');
+const MAX_DEBUG_LOG_LINES = 1000;
+
+function appendDebugLog(lines) {
+    if (!lines) return;
+    fs.appendFileSync(debugLogPath, `${lines}\n`);
+    const logLines = fs.readFileSync(debugLogPath, 'utf8').split(/\r?\n/).filter(Boolean);
+    if (logLines.length > MAX_DEBUG_LOG_LINES) {
+        fs.writeFileSync(debugLogPath, `${logLines.slice(-MAX_DEBUG_LOG_LINES).join('\n')}\n`);
+    }
+}
 
 app.use(cors());
 app.use(express.json());
@@ -119,10 +129,7 @@ app.post('/api/network_ping', (req, res) => {
 
     if (user.current_ip !== ip) {
         db.updateUserIp(device_id, ip);
-        fs.appendFileSync(
-            debugLogPath,
-            `${new Date().toISOString()} [NETWORK_PING ${user.name} #${user.id}] ${ip}\n`
-        );
+        appendDebugLog(`${new Date().toISOString()} [NETWORK_PING ${user.name} #${user.id}] ${ip}`);
     }
     res.json({ success: true, registered_ip: ip });
 });
@@ -148,7 +155,7 @@ app.post('/api/debug', (req, res) => {
     const lines = logs.slice(-100)
         .map(log => `${prefix} ${String(log).replace(/[\r\n]/g, ' ').slice(0, 2000)}`)
         .join('\n');
-    if (lines) fs.appendFileSync(debugLogPath, `${lines}\n`);
+    appendDebugLog(lines);
     res.json({ success: true });
 });
 

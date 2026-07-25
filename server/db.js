@@ -7,43 +7,69 @@ const appDir = typeof process.pkg !== 'undefined'
     ? path.dirname(process.execPath)
     : process.cwd();
 const dbPath = path.join(appDir, 'giga_limit_db.json');
+const backupPath = path.join(appDir, 'giga_limit_db.json.bak');
 
 const generatePassword = () => {
     return crypto.randomBytes(6).toString('base64url');
 };
 
-let data = {
+const emptyData = {
     settings: {},
     users: [], // { id, name, device_id, current_ip, status, daily_limit_mb }
     usage: [] // { user_id, date, bytes_used }
 };
 
-if (fs.existsSync(dbPath)) {
+const readDatabase = (filePath) => {
+    if (!fs.existsSync(filePath)) return null;
     try {
-        const fileData = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-        data = { ...data, ...fileData };
-        if (data.settings && data.settings.global_total_bytes_used === undefined) {
-            data.settings.global_total_bytes_used = 0;
+        const raw = fs.readFileSync(filePath, 'utf8').trim();
+        if (!raw) return null;
+        const fileData = JSON.parse(raw);
+        if (!fileData || typeof fileData !== 'object' || !Array.isArray(fileData.users) || !Array.isArray(fileData.usage)) {
+            return null;
         }
+        return {
+            ...emptyData,
+            ...fileData,
+            settings: { ...emptyData.settings, ...fileData.settings }
+        };
     } catch (e) {
-        console.error('Error reading db file, starting fresh.');
+        return null;
     }
-}
-
-const save = () => {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
 };
 
-if (!data.settings.admin_password) {
+let data = readDatabase(dbPath);
+let restoredFromBackup = false;
+let hasValidBackup = false;
+if (!data) {
+    data = readDatabase(backupPath);
+    hasValidBackup = Boolean(data);
+    restoredFromBackup = Boolean(data);
+} else {
+    hasValidBackup = Boolean(readDatabase(backupPath));
+}
+if (!data) data = { ...emptyData, settings: {}, users: [], usage: [] };
+if (data.settings.global_total_bytes_used === undefined) data.settings.global_total_bytes_used = 0;
+
+const writeAtomically = (filePath, value) => {
+    const tempPath = `${filePath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(value, null, 2));
+    fs.renameSync(tempPath, filePath);
+};
+
+const save = () => {
+    writeAtomically(dbPath, data);
+};
+
+const saveBackup = () => {
+    writeAtomically(backupPath, data);
+};
+
+if (!data.settings.admin_password || data.settings.admin_password === 'admin123') {
     data.settings.admin_password = generatePassword();
-    save();
 }
 
 const credPath = path.join(appDir, 'admin_credentials.txt');
-fs.writeFileSync(credPath, `Admin Password: ${data.settings.admin_password}\n`);
-console.log(`[AUTH] Admin password: ${data.settings.admin_password}`);
-console.log(`[AUTH] Saved to: ${credPath}`);
-
 if (!data.settings.global_daily_limit_mb) data.settings.global_daily_limit_mb = 1024;
 if (!data.settings.global_weekly_limit_mb) data.settings.global_weekly_limit_mb = 7168;
 
@@ -55,8 +81,12 @@ const getLocalDateString = () => {
     return `${year}-${month}-${day}`;
 };
 
-// Ensure initial save
+// Persist a complete primary database immediately. A missing, empty, or invalid
+// primary is restored from the hourly backup before this write occurs.
 save();
+if (restoredFromBackup || !hasValidBackup) saveBackup();
+setInterval(saveBackup, 60 * 60 * 1000).unref();
+fs.writeFileSync(credPath, `Admin Password: ${data.settings.admin_password}\n`);
 
 module.exports = {
     getSetting: (key) => data.settings[key],
