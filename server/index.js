@@ -118,6 +118,10 @@ app.post('/api/network_ping', (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     db.updateUserIp(device_id, ip);
+    fs.appendFileSync(
+        debugLogPath,
+        `${new Date().toISOString()} [NETWORK_PING ${user.name} #${user.id}] ${ip}\n`
+    );
     res.json({ success: true, registered_ip: ip });
 });
 

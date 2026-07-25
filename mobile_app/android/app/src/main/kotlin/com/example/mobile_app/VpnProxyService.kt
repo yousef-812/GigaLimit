@@ -175,7 +175,12 @@ class VpnProxyService : VpnService() {
                         "Connection: close\r\n\r\n$body"
                     socket.getOutputStream().write(request.toByteArray())
                     socket.getOutputStream().flush()
-                    addDebug("Physical IP report sent")
+                    val statusLine = socket.getInputStream().bufferedReader().readLine().orEmpty()
+                    if (statusLine.contains(" 200 ")) {
+                        addDebug("Physical IP report accepted: $statusLine")
+                    } else {
+                        addDebug("Physical IP report rejected: $statusLine")
+                    }
                 }
             } catch (e: Exception) {
                 addDebug("Physical IP report failed: ${e.message}")
