@@ -87,6 +87,10 @@ jobs:
         working-directory: mobile_app
         run: flutter build apk --release
 
+      - name: Name APK for distribution
+        working-directory: mobile_app
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/GigaLimit_App.apk
+
       - name: Create Tag
         run: |
           TAG="v1.0.0-${{ github.run_number }}"
@@ -98,6 +102,6 @@ jobs:
         with:
           tag_name: v1.0.0-${{ github.run_number }}
           name: "GigaLimit v1.0.0-${{ github.run_number }}"
-          files: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          files: mobile_app/build/app/outputs/flutter-apk/GigaLimit_App.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
