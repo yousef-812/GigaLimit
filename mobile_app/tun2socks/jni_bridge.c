@@ -26,10 +26,12 @@ static int set_vpn_service(JNIEnv *env, jobject service) {
     }
 
     jclass service_class = (*env)->GetObjectClass(env, service);
-    protect_socket_method = (*env)->GetMethodID(env, service_class, "protectSocket", "(I)Z");
+    // VpnService.protect(int) is inherited by VpnProxyService and keeps the
+    // SOCKS connection outside this VPN, avoiding a routing loop.
+    protect_socket_method = (*env)->GetMethodID(env, service_class, "protect", "(I)Z");
     (*env)->DeleteLocalRef(env, service_class);
     if (protect_socket_method == NULL) {
-        LOGE("Failed to find VpnProxyService.protectSocket");
+        LOGE("Failed to find VpnService.protect");
         return 0;
     }
     return 1;
