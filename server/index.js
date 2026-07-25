@@ -749,30 +749,77 @@ socksServer.listen(1080, '0.0.0.0', () => {
 // --- HOTSPOT BLOCKER ---
 if (process.platform === 'win32') {
     const { execSync } = require('child_process');
+    const path = require('path');
+    const fs = require('fs');
+    const taskName = 'GigaLimit_HotspotBlocker';
 
-    function disableHotspot() {
+    const blockScript = `
+$block = {
+    try { netsh wlan stop hostednetwork 2>$null } catch {}
+    try { Get-NetAdapter | Where-Object {
+        $_.InterfaceDescription -like '*Mobile Hotspot*' -or
+        $_.InterfaceDescription -like '*Wi-Fi Direct*' -or
+        $_.InterfaceDescription -like '*Hosted Network*' -or
+        $_.InterfaceDescription -like '*Microsoft Wi-Fi Direct*' -or
+        $_.InterfaceDescription -like '*Shared*'
+    } | Disable-NetAdapter -Confirm:$false } catch {}
+    try { Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\icssvc\\Settings' -Name 'Enabled' -Value 0 -ErrorAction SilentlyContinue } catch {}
+    try { sc config ICS start= disabled 2>$null; sc stop ICS 2>$null } catch {}
+    try { sc config SharedAccess start= disabled 2>$null; sc stop SharedAccess 2>$null } catch {}
+};
+$block | Out-Null;
+`.trim();
+
+    const scriptPath = path.join(appDir, 'hotspot_block.ps1');
+    fs.writeFileSync(scriptPath, blockScript);
+
+    function setupHotspotBlocker() {
         try {
-            execSync('netsh wlan stop hostednetwork', { stdio: 'ignore', timeout: 5000 });
+            execSync(`powershell -Command "Unregister-ScheduledTask -TaskName '${taskName}' -Confirm:$false -ErrorAction SilentlyContinue"`, { stdio: 'ignore', timeout: 8000 });
         } catch (_) {}
+
         try {
-            execSync('powershell -Command "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like \'*Mobile Hotspot*\' -or $_.InterfaceDescription -like \'*Wi-Fi Direct*\' -or $_.InterfaceDescription -like \'*Hosted Network*\' -or $_.InterfaceDescription -like \'*Microsoft Wi-Fi Direct*\' -or $_.InterfaceDescription -like \'*Local Area Connection*2*\' -or $_.InterfaceDescription -like \'*Shared*\'} | Disable-NetAdapter -Confirm:$false"', { stdio: 'ignore', timeout: 8000 });
-        } catch (_) {}
-        try {
-            execSync('powershell -Command "Set-ItemProperty -Path \'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\icssvc\\Settings\' -Name \'Enabled\' -Value 0 -ErrorAction SilentlyContinue"', { stdio: 'ignore', timeout: 5000 });
-        } catch (_) {}
-        try {
-            execSync('sc config ICS start= disabled', { stdio: 'ignore', timeout: 5000 });
-            execSync('sc stop ICS', { stdio: 'ignore', timeout: 5000 });
-        } catch (_) {}
-        try {
-            execSync('sc config SharedAccess start= disabled', { stdio: 'ignore', timeout: 5000 });
-            execSync('sc stop SharedAccess', { stdio: 'ignore', timeout: 5000 });
-        } catch (_) {}
+            const action = `-Action Execute -Argument '-NoProfile -WindowStyle Hidden -File "${scriptPath}"' -FilePath powershell`;
+            const trigger = `-Once -At (Get-Date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Seconds 10) -RepetitionDuration (New-TimeSpan -Days 3650)`;
+            const settings = `-Settings AllowStartIfOnBatteries -StartWhenAvailable -DontStopOnIdleEnd`;
+            const principal = `-Principal $env:USERNAME -RunLevel Highest`;
+            const cmd = `Register-ScheduledTask -TaskName '${taskName}' ${action} ${trigger} ${settings} ${principal} -Force`;
+            execSync(`powershell -Command "${cmd.replace(/"/g, '\\"')}"`, { stdio: 'ignore', timeout: 15000 });
+            console.log('[HOTSPOT] Scheduled task created - hotspot blocker active');
+            return true;
+        } catch (e) {
+            console.log('[HOTSPOT] Could not create scheduled task:', e.message);
+            return false;
+        }
     }
 
-    disableHotspot();
-    setInterval(disableHotspot, 10000);
-    console.log('[HOTSPOT] Mobile Hotspot blocker is active');
+    function runOnceElevated() {
+        try {
+            const cmd = `Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -WindowStyle Hidden -File "${scriptPath}"' -Wait -WindowStyle Hidden`;
+            execSync(`powershell -Command "${cmd.replace(/"/g, '\\"')}"`, { stdio: 'ignore', timeout: 20000 });
+            console.log('[HOTSPOT] First run executed with admin privileges');
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    let hasAdmin = false;
+    try {
+        execSync('net session', { stdio: 'ignore', timeout: 3000 });
+        hasAdmin = true;
+    } catch (_) {}
+
+    if (hasAdmin) {
+        setupHotspotBlocker();
+    } else {
+        console.log('[HOTSPOT] Requesting admin for initial setup...');
+        if (runOnceElevated()) {
+            setupHotspotBlocker();
+        } else {
+            console.log('[HOTSPOT] Admin denied - hotspot blocker disabled. Right-click the EXE > Run as administrator.');
+        }
+    }
 }
 
 process.on('uncaughtException', (err) => {
