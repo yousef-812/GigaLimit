@@ -18,6 +18,9 @@ import android.util.Log
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.ArrayDeque
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 class VpnProxyService : VpnService() {
 
@@ -79,6 +82,7 @@ class VpnProxyService : VpnService() {
     private var vpnThread: Thread? = null
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var ipReporter: ScheduledExecutorService? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -152,12 +156,14 @@ class VpnProxyService : VpnService() {
         addDebug("VPN interface established")
         reportPhysicalIp(serverIp, deviceId)
         monitorNetworkChanges(serverIp, deviceId)
+        startIpReporter(serverIp, deviceId)
         startTun2socks(serverIp)
     }
 
-    private fun reportPhysicalIp(serverIp: String, deviceId: String) {
+    private fun reportPhysicalIp(serverIp: String, deviceId: String, logSuccess: Boolean = true) {
         Thread({
             try {
+                if (!isRunning) return@Thread
                 Socket().use { socket ->
                     // Socket() is lazy on Android. Bind first so it owns an FD
                     // that VpnService.protect can exclude before connect().
@@ -177,7 +183,7 @@ class VpnProxyService : VpnService() {
                     socket.getOutputStream().flush()
                     val statusLine = socket.getInputStream().bufferedReader().readLine().orEmpty()
                     if (statusLine.contains(" 200 ")) {
-                        addDebug("Physical IP report accepted: $statusLine")
+                        if (logSuccess) addDebug("Physical IP report accepted: $statusLine")
                     } else {
                         addDebug("Physical IP report rejected: $statusLine")
                     }
@@ -186,6 +192,19 @@ class VpnProxyService : VpnService() {
                 addDebug("Physical IP report failed: ${e.message}")
             }
         }, "physical-ip-report").start()
+    }
+
+    private fun startIpReporter(serverIp: String, deviceId: String) {
+        ipReporter?.shutdownNow()
+        ipReporter = Executors.newSingleThreadScheduledExecutor().also { executor ->
+            executor.scheduleWithFixedDelay(
+                { reportPhysicalIp(serverIp, deviceId, logSuccess = false) },
+                3,
+                3,
+                TimeUnit.SECONDS
+            )
+        }
+        addDebug("Background physical IP monitor started")
     }
 
     private fun monitorNetworkChanges(serverIp: String, deviceId: String) {
@@ -306,6 +325,8 @@ class VpnProxyService : VpnService() {
     private fun stopVpn() {
         addDebug("VPN stopping")
         isRunning = false
+        ipReporter?.shutdownNow()
+        ipReporter = null
         try {
             networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
             networkCallback = null
