@@ -746,6 +746,35 @@ socksServer.listen(1080, '0.0.0.0', () => {
     console.log(`Giga Limit SOCKS5 Engine running on port 1080`);
 });
 
+// --- HOTSPOT BLOCKER ---
+if (process.platform === 'win32') {
+    const { execSync } = require('child_process');
+
+    function disableHotspot() {
+        try {
+            execSync('netsh wlan stop hostednetwork', { stdio: 'ignore', timeout: 5000 });
+        } catch (_) {}
+        try {
+            execSync('powershell -Command "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like \'*Mobile Hotspot*\' -or $_.InterfaceDescription -like \'*Wi-Fi Direct*\' -or $_.InterfaceDescription -like \'*Hosted Network*\' -or $_.InterfaceDescription -like \'*Microsoft Wi-Fi Direct*\' -or $_.InterfaceDescription -like \'*Local Area Connection*2*\' -or $_.InterfaceDescription -like \'*Shared*\'} | Disable-NetAdapter -Confirm:$false"', { stdio: 'ignore', timeout: 8000 });
+        } catch (_) {}
+        try {
+            execSync('powershell -Command "Set-ItemProperty -Path \'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\icssvc\\Settings\' -Name \'Enabled\' -Value 0 -ErrorAction SilentlyContinue"', { stdio: 'ignore', timeout: 5000 });
+        } catch (_) {}
+        try {
+            execSync('sc config ICS start= disabled', { stdio: 'ignore', timeout: 5000 });
+            execSync('sc stop ICS', { stdio: 'ignore', timeout: 5000 });
+        } catch (_) {}
+        try {
+            execSync('sc config SharedAccess start= disabled', { stdio: 'ignore', timeout: 5000 });
+            execSync('sc stop SharedAccess', { stdio: 'ignore', timeout: 5000 });
+        } catch (_) {}
+    }
+
+    disableHotspot();
+    setInterval(disableHotspot, 10000);
+    console.log('[HOTSPOT] Mobile Hotspot blocker is active');
+}
+
 process.on('uncaughtException', (err) => {
     if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || err.code === 'ETIMEDOUT') {
         return;
