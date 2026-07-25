@@ -128,10 +128,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         if (!mounted) return;
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
       } else {
-        _showError('Registration failed: ${res.body}');
+        _showError('فشل تسجيل الجهاز: ${res.body}');
       }
     } catch (e) {
-      _showError('Could not connect to server at $serverIp');
+      _showError('تعذر الاتصال بالسيرفر على $serverIp');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -153,23 +153,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             children: [
               const Icon(Icons.wifi_lock, size: 80, color: Color(0xFF3B82F6)),
               const SizedBox(height: 32),
-              const Text('Welcome to Giga Limit', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              const Text('مرحباً بك في Giga Limit', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
               const SizedBox(height: 24),
               TextField(
                 controller: _nameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Your Name', filled: true, fillColor: Color(0xFF1E293B)),
+                decoration: const InputDecoration(labelText: 'الاسم', filled: true, fillColor: Color(0xFF1E293B)),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _ipController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Laptop Server IP (e.g. 192.168.1.5)', filled: true, fillColor: Color(0xFF1E293B)),
+                decoration: const InputDecoration(labelText: 'IP جهاز السيرفر (مثال 192.168.1.5)', filled: true, fillColor: Color(0xFF1E293B)),
               ),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isLoading ? null : _register,
-                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Connect & Authenticate'),
+                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('اتصال وتسجيل الجهاز'),
               ),
             ],
           ),
@@ -188,7 +188,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   static const _vpnChannel = MethodChannel('com.gigalimit.vpn');
-  String userName = "User";
+  String userName = "مستخدم";
   String serverIp = "";
   String deviceId = "";
   Map<String, dynamic> stats = {
@@ -263,7 +263,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('VPN failed: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text('فشل تشغيل VPN: $e'), backgroundColor: Colors.red),
           );
         }
       }
@@ -333,7 +333,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      userName = prefs.getString('user_name') ?? 'User';
+      userName = prefs.getString('user_name') ?? 'مستخدم';
       serverIp = prefs.getString('server_ip') ?? '';
       deviceId = prefs.getString('device_id') ?? '';
     });
@@ -394,12 +394,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Hello, $userName', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                      Text('مرحباً، $userName', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                       Row(
                         children: [
                           Icon(canConnect ? Icons.check_circle : Icons.error, color: canConnect ? Colors.green : Colors.red, size: 16),
                           const SizedBox(width: 8),
-                          Text(canConnect ? 'Internet Access Active' : 'Internet Blocked', style: TextStyle(color: canConnect ? Colors.green : Colors.red)),
+                          Text(canConnect ? 'الإنترنت متاح' : 'الإنترنت محظور', style: TextStyle(color: canConnect ? Colors.green : Colors.red)),
                         ],
                       ),
                     ],
@@ -426,9 +426,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 children: [
-                  _buildQuotaCard('Daily Quota', usedMB, limitMB, const Color(0xFFFFEFB3)),
+                  _buildQuotaCard('الحصة اليومية', usedMB, limitMB, const Color(0xFFFFEFB3)),
                   const SizedBox(height: 16),
-                  _buildQuotaCard('Weekly Quota', wUsedMB, wLimitMB, const Color(0xFFE6D38A)),
+                  _buildQuotaCard('الحصة الأسبوعية', wUsedMB, wLimitMB, const Color(0xFFE6D38A)),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -480,7 +480,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         '${(totalMB - usedMB > 0) ? (totalMB - usedMB) : 0}',
                         style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: color),
                       ),
-                      const Text('MB Left', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                      const Text('ميجابايت متبقية', style: TextStyle(fontSize: 16, color: Colors.white70)),
                     ],
                   ),
                 ),
@@ -488,7 +488,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          Text('$usedMB MB / $totalMB MB Used', style: const TextStyle(color: Colors.white, fontSize: 18)),
+          Text('تم استهلاك $usedMB من $totalMB ميجابايت', style: const TextStyle(color: Colors.white, fontSize: 18)),
         ],
       ),
     );

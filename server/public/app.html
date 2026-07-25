@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -84,9 +84,9 @@
 <body>
 
 <div id="in-app-banner">
-    <div class="banner-title" id="banner-title">Alert</div>
-    <div class="banner-body" id="banner-body">Message</div>
-    <button class="banner-close" onclick="document.getElementById('in-app-banner').style.display='none'">Dismiss</button>
+    <div class="banner-title" id="banner-title">تنبيه</div>
+    <div class="banner-body" id="banner-body">رسالة</div>
+    <button class="banner-close" onclick="document.getElementById('in-app-banner').style.display='none'">إغلاق</button>
     <div style="clear: both;"></div>
 </div>
 
@@ -97,26 +97,26 @@
             <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
         </div>
         <h1 style="margin-bottom: 8px;">Giga Limit</h1>
-        <p style="color: var(--text-dim); margin-bottom: 32px;">Register your device to access internet.</p>
-        <input type="text" id="reg-name" placeholder="Enter your name (e.g. Yousef iPhone)" autocomplete="off">
-        <button onclick="register()">Connect Device</button>
+        <p style="color: var(--text-dim); margin-bottom: 32px;">سجّل جهازك للوصول إلى الإنترنت.</p>
+        <input type="text" id="reg-name" placeholder="اكتب اسمك" autocomplete="off">
+        <button onclick="register()">تسجيل الجهاز</button>
     </div>
 
     <!-- DASHBOARD SCREEN -->
     <div id="dashboard-screen">
         <div class="header">
-            <h1 id="user-name">Hello, User</h1>
+            <h1 id="user-name">مرحباً</h1>
             <div id="status-badge" class="status-badge active">
-                <span id="status-icon">●</span> <span id="status-text">Internet Active</span>
+                <span id="status-icon">●</span> <span id="status-text">الإنترنت متاح</span>
             </div>
             <button id="enable-notif-btn" style="background: var(--warning); color: #000; margin-top: 1rem; display: none; width: 100%; border: none; padding: 12px; border-radius: 8px; font-weight: 600;" onclick="requestNotifPermission()">🔔 تفعيل الإشعارات</button>
             <a href="/download_app" style="display: block; width: 100%; text-align: center; padding: 12px; background: rgba(52, 211, 153, 0.2); color: var(--success); border: 1px solid var(--success); border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 1rem;">
-                Download Android App 📱
+                تحميل تطبيق Android 📱
             </a>
         </div>
 
         <div class="card">
-            <h3>Daily Quota</h3>
+            <h3>الحصة اليومية</h3>
             <div class="progress-circle">
                 <svg viewBox="0 0 220 220">
                     <circle class="bg-circle" cx="110" cy="110" r="100"></circle>
@@ -124,14 +124,14 @@
                 </svg>
                 <div class="circle-content">
                     <div class="value daily-val" id="daily-left">0</div>
-                    <div class="label">MB Left</div>
+                    <div class="label">ميجابايت متبقية</div>
                 </div>
             </div>
             <div class="usage-text" id="daily-usage-text">0 MB / 0 MB Used</div>
         </div>
 
         <div class="card">
-            <h3>Weekly Quota</h3>
+            <h3>الحصة الأسبوعية</h3>
             <div class="progress-circle">
                 <svg viewBox="0 0 220 220">
                     <circle class="bg-circle" cx="110" cy="110" r="100"></circle>
@@ -139,7 +139,7 @@
                 </svg>
                 <div class="circle-content">
                     <div class="value weekly-val" id="weekly-left">0</div>
-                    <div class="label">MB Left</div>
+                    <div class="label">ميجابايت متبقية</div>
                 </div>
             </div>
             <div class="usage-text" id="weekly-usage-text">0 MB / 0 MB Used</div>
@@ -155,7 +155,7 @@
         document.getElementById('register-screen').style.display = 'flex';
     } else {
         document.getElementById('dashboard-screen').style.display = 'block';
-        document.getElementById('user-name').innerText = `Hello, ${userName}`;
+        document.getElementById('user-name').innerText = `مرحباً، ${userName}`;
         
         checkNotifButton();
 
@@ -186,7 +186,7 @@
 
     async function register() {
         const name = document.getElementById('reg-name').value.trim();
-        if (!name) return alert('Please enter a name');
+        if (!name) return alert('اكتب الاسم أولاً');
         
         const newDeviceId = 'web_' + Date.now() + '_' + Math.floor(Math.random()*1000);
         
@@ -203,7 +203,7 @@
                 location.reload();
             }
         } catch (e) {
-            alert('Connection failed. Make sure proxy is set and you are on the correct network.');
+            alert('فشل الاتصال. تأكد من أنك على الشبكة الصحيحة.');
         }
     }
 
@@ -277,10 +277,10 @@
         const badge = document.getElementById('status-badge');
         if (data.can_connect) {
             badge.className = 'status-badge active';
-            document.getElementById('status-text').innerText = 'Internet Access Active';
+            document.getElementById('status-text').innerText = 'الإنترنت متاح';
         } else {
             badge.className = 'status-badge blocked';
-            document.getElementById('status-text').innerText = 'Internet Blocked';
+            document.getElementById('status-text').innerText = 'الإنترنت محظور';
         }
 
         // Daily
@@ -291,7 +291,7 @@
         if (dailyPct > 1) dailyPct = 1;
         
         document.getElementById('daily-left').innerText = dailyLeft;
-        document.getElementById('daily-usage-text').innerText = `${dailyUsed} MB / ${dailyLimit} MB Used`;
+        document.getElementById('daily-usage-text').innerText = `تم استهلاك ${dailyUsed} من ${dailyLimit} ميجابايت`;
         document.getElementById('daily-ring').style.strokeDashoffset = 628 - (628 * dailyPct);
 
         // Weekly
@@ -302,7 +302,7 @@
         if (weeklyPct > 1) weeklyPct = 1;
 
         document.getElementById('weekly-left').innerText = weeklyLeft;
-        document.getElementById('weekly-usage-text').innerText = `${weeklyUsed} MB / ${weeklyLimit} MB Used`;
+        document.getElementById('weekly-usage-text').innerText = `تم استهلاك ${weeklyUsed} من ${weeklyLimit} ميجابايت`;
         document.getElementById('weekly-ring').style.strokeDashoffset = 628 - (628 * weeklyPct);
 
         // Check Notifications

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Giga Limit Admin</title>
+    <title>إدارة Giga Limit</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
@@ -29,6 +29,8 @@
             display: flex;
             flex-direction: column;
         }
+        .field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; flex: 1; }
+        .field-label { color: var(--text-muted); font-size: 0.75rem; }
 
         .glass {
             background: var(--surface);
@@ -247,45 +249,43 @@
     <div id="login-view" class="active">
         <div class="login-box glass">
             <h1>Giga Limit</h1>
-            <p style="color: var(--text-muted); margin-bottom: 2rem;">Local Admin Gateway</p>
-            <input type="password" id="password" placeholder="Admin Password" onkeypress="if(event.key === 'Enter') login()">
-            <button onclick="login()">Access Control Panel</button>
-            <p id="login-error" style="color: var(--danger); display: none; margin-top: 1rem; font-size: 0.875rem;">Invalid password</p>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">لوحة الإدارة المحلية</p>
+            <input type="password" id="password" placeholder="كلمة مرور الإدارة" onkeypress="if(event.key === 'Enter') login()">
+            <button onclick="login()">دخول لوحة التحكم</button>
+            <p id="login-error" style="color: var(--danger); display: none; margin-top: 1rem; font-size: 0.875rem;">كلمة المرور غير صحيحة</p>
         </div>
     </div>
 
     <div id="dashboard-view">
         <div class="header" style="flex-wrap: wrap;">
             <div>
-                <h1>Control Panel</h1>
-                <p id="server-time-display" style="color: var(--text-muted); margin-top: 4px; font-size: 0.875rem;">Server Date: Loading...</p>
+                <h1>لوحة التحكم</h1>
+                <p id="server-time-display" style="color: var(--text-muted); margin-top: 4px; font-size: 0.875rem;">وقت السيرفر: جارٍ التحميل...</p>
             </div>
-            <button style="width: auto; padding: 8px 16px; background: transparent; border: 1px solid var(--border); color: var(--text);" onclick="logout()">Logout</button>
+            <button style="width: auto; padding: 8px 16px; background: transparent; border: 1px solid var(--border); color: var(--text);" onclick="logout()">تسجيل الخروج</button>
         </div>
 
         <div class="settings-panel glass" style="justify-content: space-between; align-items: flex-start;">
             <div>
-                <h3 style="color: var(--text-muted); font-size: 1rem; margin-bottom: 0.5rem;">Total Network Usage (All Time)</h3>
+                <h3 style="color: var(--text-muted); font-size: 1rem; margin-bottom: 0.5rem;">إجمالي استهلاك الشبكة</h3>
                 <p id="global-total-usage" style="font-size: 2rem; font-weight: 800; margin: 0; color: var(--primary);">0 MB</p>
             </div>
-            <button class="btn-small btn-danger" style="width: auto;" onclick="resetGlobalTotal()">Reset / Start Over</button>
+            <button class="btn-small btn-danger" style="width: auto;" onclick="resetGlobalTotal()">تصفير الإجمالي</button>
         </div>
 
         <div class="settings-panel glass">
-            <h3>Global Default Limit (For new devices)</h3>
+            <h3>الإعدادات الافتراضية للأجهزة</h3>
             <div class="limit-input-group" style="width: 100%; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                <input type="number" id="global-limit" placeholder="Daily Limit (MB)" style="width: 150px;">
-                <input type="number" id="global-weekly-limit" placeholder="Weekly Limit (MB)" style="width: 150px;">
-                <input type="number" id="global-speed-limit" min="0" placeholder="Speed (0 = Open)" style="width: 150px;">
-                <select id="global-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select>
-                <input type="number" id="global-exhausted-speed-limit" min="0" placeholder="After quota (0 = Block)" style="width: 170px;">
-                <select id="global-exhausted-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select>
-                <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px; background: var(--primary); color: var(--bg);">Save</button>
-                <span id="global-msg" style="color: var(--success); font-size: 0.875rem; display: none;">Saved!</span>
+                <div class="field"><label class="field-label">الحد اليومي (MB)</label><input type="number" id="global-limit" style="width: 100%;"></div>
+                <div class="field"><label class="field-label">الحد الأسبوعي (MB)</label><input type="number" id="global-weekly-limit" style="width: 100%;"></div>
+                <div class="field"><label class="field-label">السرعة العادية، 0 = مفتوحة</label><div style="display:flex; gap:4px;"><input type="number" id="global-speed-limit" min="0"><select id="global-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select></div></div>
+                <div class="field"><label class="field-label">السرعة بعد انتهاء الحصة، 0 = قطع</label><div style="display:flex; gap:4px;"><input type="number" id="global-exhausted-speed-limit" min="0"><select id="global-exhausted-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select></div></div>
+                <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px; background: var(--primary); color: var(--bg);">حفظ</button>
+                <span id="global-msg" style="color: var(--success); font-size: 0.875rem; display: none;">تم الحفظ</span>
             </div>
         </div>
         
-        <h2 id="connected-devices-header" onclick="handleSecretClick()" style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem; cursor: pointer; user-select: none;">Connected Devices</h2>
+        <h2 id="connected-devices-header" onclick="handleSecretClick()" style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem; cursor: pointer; user-select: none;">الأجهزة المسجلة</h2>
         <div class="card-grid" id="users-grid">
             <!-- Cards populated by JS -->
         </div>
@@ -316,7 +316,7 @@
             secretClicks++;
             if (secretClicks >= 10 && !secretMode) {
                 secretMode = true;
-                alert("God Mode Enabled: Sliders Unlocked!");
+                alert("تم تفعيل وضع تعديل الاستهلاك");
                 loadUsers();
             }
             clearTimeout(secretTimeout);
@@ -390,7 +390,7 @@
             let mb = totalBytes / (1024 * 1024);
             let displayStr = mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb.toFixed(2) + ' MB';
             document.getElementById('global-total-usage').innerText = displayStr;
-            document.getElementById('server-time-display').innerText = `Server Date: ${data.server_date} | Time: ${data.server_time}`;
+            document.getElementById('server-time-display').innerText = `تاريخ السيرفر: ${data.server_date} | الوقت: ${data.server_time}`;
         }
 
         async function updateGlobalLimit() {
@@ -424,7 +424,7 @@
             const grid = document.getElementById('users-grid');
             
             if(users.length === 0) {
-                grid.innerHTML = '<p style="color: var(--text-muted);">No devices connected yet.</p>';
+                grid.innerHTML = '<p style="color: var(--text-muted);">لا توجد أجهزة مسجلة حتى الآن.</p>';
                 return;
             }
 
@@ -438,6 +438,7 @@
                 
                 const maxDaily = u.daily_limit_mb * 1024 * 1024;
                 const maxWeekly = weeklyLimit * 1024 * 1024;
+                const statusLabel = { active: 'نشط', blocked: 'محظور', unlimited: 'غير محدود' }[u.status] || u.status;
 
                 let dailyBarHTML = '';
                 let weeklyBarHTML = '';
@@ -472,55 +473,55 @@
                 card.innerHTML = `
                     <div class="user-header">
                         <h3 class="user-name">${u.name}</h3>
-                        <span class="status-badge status-${u.status}">${u.status}</span>
+                        <span class="status-badge status-${u.status}">${statusLabel}</span>
                     </div>
                     <div>
                         <div class="user-stats">
-                            <span>Daily Usage</span>
+                            <span>استهلاك اليوم</span>
                             <span>${u.status === 'unlimited' ? usageMB + ' MB' : usageMB + ' / ' + u.daily_limit_mb + ' MB'}</span>
                         </div>
                         ${dailyBarHTML}
                         
                         <div class="user-stats" style="margin-top: 8px;">
-                            <span>Weekly Usage</span>
+                            <span>استهلاك الأسبوع</span>
                             <span>${u.status === 'unlimited' ? weeklyUsageMB + ' MB' : weeklyUsageMB + ' / ' + weeklyLimit + ' MB'}</span>
                         </div>
                         ${weeklyBarHTML}
                     </div>
                     <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
                         <div style="display:flex; gap: 0.5rem;">
-                            <input type="number" id="limit-${u.id}" value="${currentInputValue}" placeholder="Daily Limit MB">
-                            <input type="number" id="wlimit-${u.id}" value="${currentWInputValue}" placeholder="Weekly Limit MB">
+                            <div class="field"><label class="field-label">حد اليوم (MB)</label><input type="number" id="limit-${u.id}" value="${currentInputValue}"></div>
+                            <div class="field"><label class="field-label">حد الأسبوع (MB)</label><input type="number" id="wlimit-${u.id}" value="${currentWInputValue}"></div>
                         </div>
-                        <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">Save Limits</button>
+                        <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">حفظ الحدود</button>
                     </div>
                     <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
                         <div style="display:flex; gap: 0.5rem; align-items:center;">
-                            <input type="number" min="0" id="speed-${u.id}" value="${userSpeed.value}" placeholder="Speed (0 = Open)">
+                            <div class="field"><label class="field-label">السرعة العادية، 0 = مفتوحة</label><input type="number" min="0" id="speed-${u.id}" value="${userSpeed.value}"></div>
                             <select id="speed-unit-${u.id}">${speedUnitOptions(userSpeed.unit)}</select>
                         </div>
                         <div style="display:flex; gap: 0.5rem; align-items:center;">
-                            <input type="number" min="0" id="exhausted-speed-${u.id}" value="${exhaustedSpeed.value}" placeholder="After quota (0 = Block)">
+                            <div class="field"><label class="field-label">بعد انتهاء الحصة، 0 = قطع</label><input type="number" min="0" id="exhausted-speed-${u.id}" value="${exhaustedSpeed.value}"></div>
                             <select id="exhausted-speed-unit-${u.id}">${speedUnitOptions(exhaustedSpeed.unit)}</select>
                         </div>
-                        <button class="btn-small" onclick="updateSpeed(${u.id}, '${u.status}', ${u.daily_limit_mb}, ${weeklyLimit})">Save Speed</button>
+                        <button class="btn-small" onclick="updateSpeed(${u.id}, '${u.status}', ${u.daily_limit_mb}, ${weeklyLimit})">حفظ السرعة</button>
                     </div>
                     <div class="card-actions">
-                        <button class="btn-small" onclick="renewDaily(${u.id})">Renew Daily</button>
-                        <button class="btn-small" onclick="renewWeekly(${u.id})">Renew Weekly</button>
-                        <button class="btn-small" style="color: var(--primary);" onclick="resetToDefault(${u.id})">Reset to Default</button>
+                        <button class="btn-small" onclick="renewDaily(${u.id})">تجديد اليوم</button>
+                        <button class="btn-small" onclick="renewWeekly(${u.id})">تجديد الأسبوع</button>
+                        <button class="btn-small" style="color: var(--primary);" onclick="resetToDefault(${u.id})">إرجاع للإعدادات العامة</button>
                         <button class="btn-small" onclick="updateUser(${u.id}, '${u.status === 'unlimited' ? 'active' : 'unlimited'}', ${u.daily_limit_mb}, ${weeklyLimit})">
-                            ${u.status === 'unlimited' ? 'Disable Unlimited' : 'Unlimited Mode'}
+                            ${u.status === 'unlimited' ? 'إلغاء غير المحدود' : 'إنترنت غير محدود'}
                         </button>
                         <button class="btn-small ${u.status !== 'blocked' ? 'btn-danger' : 'btn-success'}"
                                 onclick="updateUser(${u.id}, '${u.status === 'blocked' ? 'active' : 'blocked'}', ${u.daily_limit_mb}, ${weeklyLimit})">
-                            ${u.status === 'blocked' ? 'Unblock Internet' : 'Block Internet'}
+                            ${u.status === 'blocked' ? 'إلغاء الحظر' : 'حظر الإنترنت'}
                         </button>
                         <button class="btn-small btn-danger" style="grid-column: span 2; margin-top: 0.5rem;" onclick="deleteUser(${u.id})">
-                            Delete Device 🗑️
+                            حذف الجهاز 🗑️
                         </button>
                         <button class="btn-small" style="grid-column: span 2; margin-top: 0.5rem; background: var(--primary); color: var(--bg);" onclick="sendNotification(${u.id})">
-                            Send Notification 🔔
+                            إرسال إشعار 🔔
                         </button>
                     </div>
                 `;
@@ -548,14 +549,14 @@
         }
 
         async function sendNotification(id) {
-            const message = prompt("Enter the notification message to send to this user:");
+            const message = prompt("اكتب الإشعار الذي تريد إرساله للمستخدم:");
             if (message && message.trim() !== "") {
                 await fetch('/api/admin/send_notification', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
                     body: JSON.stringify({ id, message: message.trim() })
                 });
-                alert("Notification Sent!");
+                alert("تم إرسال الإشعار");
             }
         }
 
@@ -587,7 +588,7 @@
         }
 
         async function resetGlobalTotal() {
-            if (confirm("Are you sure you want to reset the entire network's total usage back to 0? This cannot be undone.")) {
+            if (confirm("هل تريد تصفير إجمالي استهلاك الشبكة؟")) {
                 await fetch('/api/admin/reset_global_total', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': authToken }
@@ -597,7 +598,7 @@
         }
 
         async function deleteUser(id) {
-            if (confirm("Are you sure you want to permanently delete this device?")) {
+            if (confirm("هل تريد حذف هذا الجهاز نهائياً؟")) {
                 await fetch('/api/admin/delete_user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
