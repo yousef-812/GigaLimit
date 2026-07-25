@@ -422,110 +422,164 @@
 
         function renderUsers(users) {
             const grid = document.getElementById('users-grid');
-            
+            const seenIds = new Set();
+
             if(users.length === 0) {
                 grid.innerHTML = '<p style="color: var(--text-muted);">لا توجد أجهزة مسجلة حتى الآن.</p>';
                 return;
             }
 
-            // We update existing DOM elements instead of full innerHTML replace to prevent input loss during 5s refresh
             users.forEach(u => {
+                seenIds.add(u.id);
                 const usageMB = Math.round(u.bytes_used / (1024 * 1024)); 
                 const weeklyUsageMB = Math.round((u.weekly_bytes_used || 0) / (1024 * 1024));
                 const weeklyLimit = u.weekly_limit_mb || (u.daily_limit_mb * 7);
                 const pct = u.status === 'unlimited' ? 0 : Math.min(100, (usageMB / u.daily_limit_mb) * 100);
                 const wPct = u.status === 'unlimited' ? 0 : Math.min(100, (weeklyUsageMB / weeklyLimit) * 100);
-                
-                const maxDaily = u.daily_limit_mb * 1024 * 1024;
-                const maxWeekly = weeklyLimit * 1024 * 1024;
                 const statusLabel = { active: 'نشط', blocked: 'محظور', unlimited: 'غير محدود' }[u.status] || u.status;
 
-                let dailyBarHTML = '';
-                let weeklyBarHTML = '';
-
-                if (u.status === 'unlimited') {
-                    dailyBarHTML = '<div class="usage-bar-bg" style="display:none;"></div>';
-                    weeklyBarHTML = '<div class="usage-bar-bg" style="display:none;"></div>';
-                } else if (secretMode) {
-                    dailyBarHTML = `<input type="range" style="width:100%; margin:8px 0; accent-color: var(--primary);" min="0" max="${maxDaily}" value="${u.bytes_used}" onchange="updateUsageSecret(${u.id}, this.value, ${u.weekly_bytes_used || 0})">`;
-                    weeklyBarHTML = `<input type="range" style="width:100%; margin:8px 0; accent-color: #a78bfa;" min="0" max="${maxWeekly}" value="${u.weekly_bytes_used || 0}" onchange="updateUsageSecret(${u.id}, ${u.bytes_used}, this.value)">`;
-                } else {
-                    dailyBarHTML = `<div class="usage-bar-bg"><div class="usage-bar-fill" style="width: ${pct}%; ${pct >= 100 ? 'background:var(--danger);' : ''}"></div></div>`;
-                    weeklyBarHTML = `<div class="usage-bar-bg"><div class="usage-bar-fill" style="width: ${wPct}%; ${wPct >= 100 ? 'background:var(--danger);' : 'background: linear-gradient(90deg, #a78bfa, #c084fc);'}"></div></div>`;
-                }
-                
                 let card = document.getElementById(`user-card-${u.id}`);
+
                 if (!card) {
-                    card = document.createElement('div');
-                    card.id = `user-card-${u.id}`;
-                    card.className = 'user-card glass';
+                    card = createCard(u, usageMB, weeklyUsageMB, weeklyLimit, pct, wPct, statusLabel);
                     grid.appendChild(card);
+                } else {
+                    updateCard(card, u, usageMB, weeklyUsageMB, weeklyLimit, pct, wPct, statusLabel);
                 }
-
-                const limitInput = card.querySelector(`#limit-${u.id}`);
-                const wLimitInput = card.querySelector(`#wlimit-${u.id}`);
-                const isFocused = (limitInput && limitInput === document.activeElement) || (wLimitInput && wLimitInput === document.activeElement);
-                const currentInputValue = (limitInput && isFocused) ? limitInput.value : u.daily_limit_mb;
-                const currentWInputValue = (wLimitInput && isFocused) ? wLimitInput.value : weeklyLimit;
-                const userSpeed = speedParts(u.speed_limit_bps ?? globalSettings.global_speed_limit_bps);
-                const exhaustedSpeed = speedParts(u.exhausted_speed_limit_bps ?? globalSettings.global_exhausted_speed_limit_bps);
-
-                card.innerHTML = `
-                    <div class="user-header">
-                        <h3 class="user-name">${u.name}</h3>
-                        <span class="status-badge status-${u.status}">${statusLabel}</span>
-                    </div>
-                    <div>
-                        <div class="user-stats">
-                            <span>استهلاك اليوم</span>
-                            <span>${u.status === 'unlimited' ? usageMB + ' MB' : usageMB + ' / ' + u.daily_limit_mb + ' MB'}</span>
-                        </div>
-                        ${dailyBarHTML}
-                        
-                        <div class="user-stats" style="margin-top: 8px;">
-                            <span>استهلاك الأسبوع</span>
-                            <span>${u.status === 'unlimited' ? weeklyUsageMB + ' MB' : weeklyUsageMB + ' / ' + weeklyLimit + ' MB'}</span>
-                        </div>
-                        ${weeklyBarHTML}
-                    </div>
-                    <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
-                        <div style="display:flex; gap: 0.5rem;">
-                            <div class="field"><label class="field-label">حد اليوم (MB)</label><input type="number" id="limit-${u.id}" value="${currentInputValue}"></div>
-                            <div class="field"><label class="field-label">حد الأسبوع (MB)</label><input type="number" id="wlimit-${u.id}" value="${currentWInputValue}"></div>
-                        </div>
-                        <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">حفظ الحدود</button>
-                    </div>
-                    <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
-                        <div style="display:flex; gap: 0.5rem; align-items:center;">
-                            <div class="field"><label class="field-label">السرعة العادية، 0 = مفتوحة</label><input type="number" min="0" id="speed-${u.id}" value="${userSpeed.value}"></div>
-                            <select id="speed-unit-${u.id}">${speedUnitOptions(userSpeed.unit)}</select>
-                        </div>
-                        <div style="display:flex; gap: 0.5rem; align-items:center;">
-                            <div class="field"><label class="field-label">بعد انتهاء الحصة، 0 = قطع</label><input type="number" min="0" id="exhausted-speed-${u.id}" value="${exhaustedSpeed.value}"></div>
-                            <select id="exhausted-speed-unit-${u.id}">${speedUnitOptions(exhaustedSpeed.unit)}</select>
-                        </div>
-                        <button class="btn-small" onclick="updateSpeed(${u.id}, '${u.status}', ${u.daily_limit_mb}, ${weeklyLimit})">حفظ السرعة</button>
-                    </div>
-                    <div class="card-actions">
-                        <button class="btn-small" onclick="renewDaily(${u.id})">تجديد اليوم</button>
-                        <button class="btn-small" onclick="renewWeekly(${u.id})">تجديد الأسبوع</button>
-                        <button class="btn-small" style="color: var(--primary);" onclick="resetToDefault(${u.id})">إرجاع للإعدادات العامة</button>
-                        <button class="btn-small" onclick="updateUser(${u.id}, '${u.status === 'unlimited' ? 'active' : 'unlimited'}', ${u.daily_limit_mb}, ${weeklyLimit})">
-                            ${u.status === 'unlimited' ? 'إلغاء غير المحدود' : 'إنترنت غير محدود'}
-                        </button>
-                        <button class="btn-small ${u.status !== 'blocked' ? 'btn-danger' : 'btn-success'}"
-                                onclick="updateUser(${u.id}, '${u.status === 'blocked' ? 'active' : 'blocked'}', ${u.daily_limit_mb}, ${weeklyLimit})">
-                            ${u.status === 'blocked' ? 'إلغاء الحظر' : 'حظر الإنترنت'}
-                        </button>
-                        <button class="btn-small btn-danger" style="grid-column: span 2; margin-top: 0.5rem;" onclick="deleteUser(${u.id})">
-                            حذف الجهاز 🗑️
-                        </button>
-                        <button class="btn-small" style="grid-column: span 2; margin-top: 0.5rem; background: var(--primary); color: var(--bg);" onclick="sendNotification(${u.id})">
-                            إرسال إشعار 🔔
-                        </button>
-                    </div>
-                `;
             });
+
+            grid.querySelectorAll('.user-card').forEach(card => {
+                const id = Number(card.id.replace('user-card-', ''));
+                if (!seenIds.has(id)) card.remove();
+            });
+        }
+
+        function createCard(u, usageMB, weeklyUsageMB, weeklyLimit, pct, wPct, statusLabel) {
+            const maxDaily = u.daily_limit_mb * 1024 * 1024;
+            const maxWeekly = weeklyLimit * 1024 * 1024;
+            const userSpeed = speedParts(u.speed_limit_bps ?? globalSettings.global_speed_limit_bps);
+            const exhaustedSpeed = speedParts(u.exhausted_speed_limit_bps ?? globalSettings.global_exhausted_speed_limit_bps);
+
+            const card = document.createElement('div');
+            card.id = `user-card-${u.id}`;
+            card.className = 'user-card glass';
+
+            let barSection = '';
+            if (u.status === 'unlimited') {
+                barSection = `<div class="usage-bar-bg" style="display:none;" data-bar="daily"></div><div class="usage-bar-bg" style="margin-top:8px;display:none;" data-bar="weekly"></div>`;
+            } else if (secretMode) {
+                barSection = `<input type="range" data-bar="daily-range" style="width:100%; margin:8px 0; accent-color: var(--primary);" min="0" max="${maxDaily}" value="${u.bytes_used}" onchange="updateUsageSecret(${u.id}, this.value, ${u.weekly_bytes_used || 0})"><input type="range" data-bar="weekly-range" style="width:100%; margin:8px 0; accent-color: #a78bfa;" min="0" max="${maxWeekly}" value="${u.weekly_bytes_used || 0}" onchange="updateUsageSecret(${u.id}, ${u.bytes_used}, this.value)">`;
+            } else {
+                barSection = `<div class="usage-bar-bg" data-bar="daily"><div class="usage-bar-fill" style="width: ${pct}%; ${pct >= 100 ? 'background:var(--danger);' : ''}"></div></div><div class="usage-bar-bg" style="margin-top:8px;" data-bar="weekly"><div class="usage-bar-fill" style="width: ${wPct}%; ${wPct >= 100 ? 'background:var(--danger);' : 'background: linear-gradient(90deg, #a78bfa, #c084fc);'}"></div></div>`;
+            }
+
+            card.innerHTML = `
+                <div class="user-header">
+                    <h3 class="user-name">${u.name}</h3>
+                    <span class="status-badge status-${u.status}" data-field="status-badge">${statusLabel}</span>
+                </div>
+                <div>
+                    <div class="user-stats">
+                        <span>استهلاك اليوم</span>
+                        <span data-field="daily-usage">${u.status === 'unlimited' ? usageMB + ' MB' : usageMB + ' / ' + u.daily_limit_mb + ' MB'}</span>
+                    </div>
+                    ${barSection}
+                    <div class="user-stats" style="margin-top: 8px;">
+                        <span>استهلاك الأسبوع</span>
+                        <span data-field="weekly-usage">${u.status === 'unlimited' ? weeklyUsageMB + ' MB' : weeklyUsageMB + ' / ' + weeklyLimit + ' MB'}</span>
+                    </div>
+                </div>
+                <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
+                    <div style="display:flex; gap: 0.5rem;">
+                        <div class="field"><label class="field-label">حد اليوم (MB)</label><input type="number" id="limit-${u.id}" value="${u.daily_limit_mb}"></div>
+                        <div class="field"><label class="field-label">حد الأسبوع (MB)</label><input type="number" id="wlimit-${u.id}" value="${weeklyLimit}"></div>
+                    </div>
+                    <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">حفظ الحدود</button>
+                </div>
+                <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
+                    <div style="display:flex; gap: 0.5rem; align-items:center;">
+                        <div class="field"><label class="field-label">السرعة العادية، 0 = مفتوحة</label><input type="number" min="0" id="speed-${u.id}" value="${userSpeed.value}"></div>
+                        <select id="speed-unit-${u.id}">${speedUnitOptions(userSpeed.unit)}</select>
+                    </div>
+                    <div style="display:flex; gap: 0.5rem; align-items:center;">
+                        <div class="field"><label class="field-label">بعد انتهاء الحصة، 0 = قطع</label><input type="number" min="0" id="exhausted-speed-${u.id}" value="${exhaustedSpeed.value}"></div>
+                        <select id="exhausted-speed-unit-${u.id}">${speedUnitOptions(exhaustedSpeed.unit)}</select>
+                    </div>
+                    <button class="btn-small" onclick="updateSpeed(${u.id}, '${u.status}', ${u.daily_limit_mb}, ${weeklyLimit})">حفظ السرعة</button>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-small" onclick="renewDaily(${u.id})">تجديد اليوم</button>
+                    <button class="btn-small" onclick="renewWeekly(${u.id})">تجديد الأسبوع</button>
+                    <button class="btn-small" style="color: var(--primary);" onclick="resetToDefault(${u.id})">إرجاع للإعدادات العامة</button>
+                    <button class="btn-small" data-btn="unlimited" onclick="updateUser(${u.id}, '${u.status === 'unlimited' ? 'active' : 'unlimited'}', ${u.daily_limit_mb}, ${weeklyLimit})">
+                        ${u.status === 'unlimited' ? 'إلغاء غير المحدود' : 'إنترنت غير محدود'}
+                    </button>
+                    <button class="btn-small ${u.status !== 'blocked' ? 'btn-danger' : 'btn-success'}" data-btn="block"
+                            onclick="updateUser(${u.id}, '${u.status === 'blocked' ? 'active' : 'blocked'}', ${u.daily_limit_mb}, ${weeklyLimit})">
+                        ${u.status === 'blocked' ? 'إلغاء الحظر' : 'حظر الإنترنت'}
+                    </button>
+                    <button class="btn-small btn-danger" style="grid-column: span 2; margin-top: 0.5rem;" onclick="deleteUser(${u.id})">
+                        حذف الجهاز 🗑️
+                    </button>
+                    <button class="btn-small" style="grid-column: span 2; margin-top: 0.5rem; background: var(--primary); color: var(--bg);" onclick="sendNotification(${u.id})">
+                        إرسال إشعار 🔔
+                    </button>
+                </div>
+            `;
+            return card;
+        }
+
+        function updateCard(card, u, usageMB, weeklyUsageMB, weeklyLimit, pct, wPct, statusLabel) {
+            const badge = card.querySelector('[data-field="status-badge"]');
+            if (badge) {
+                badge.className = `status-badge status-${u.status}`;
+                badge.textContent = statusLabel;
+            }
+
+            const dailyText = card.querySelector('[data-field="daily-usage"]');
+            if (dailyText) dailyText.textContent = u.status === 'unlimited' ? usageMB + ' MB' : usageMB + ' / ' + u.daily_limit_mb + ' MB';
+
+            const weeklyText = card.querySelector('[data-field="weekly-usage"]');
+            if (weeklyText) weeklyText.textContent = u.status === 'unlimited' ? weeklyUsageMB + ' MB' : weeklyUsageMB + ' / ' + weeklyLimit + ' MB';
+
+            const dailyBar = card.querySelector('[data-bar="daily"]');
+            const weeklyBar = card.querySelector('[data-bar="weekly"]');
+            const dailyFill = dailyBar ? dailyBar.querySelector('.usage-bar-fill') : null;
+            const weeklyFill = weeklyBar ? weeklyBar.querySelector('.usage-bar-fill') : null;
+
+            if (u.status === 'unlimited') {
+                if (dailyBar) dailyBar.style.display = 'none';
+                if (weeklyBar) weeklyBar.style.display = 'none';
+            } else if (secretMode) {
+                const dailyRange = card.querySelector('[data-bar="daily-range"]');
+                const weeklyRange = card.querySelector('[data-bar="weekly-range"]');
+                if (dailyRange) dailyRange.value = u.bytes_used;
+                if (weeklyRange) weeklyRange.value = u.weekly_bytes_used || 0;
+            } else {
+                if (dailyBar) dailyBar.style.display = '';
+                if (dailyFill) {
+                    dailyFill.style.width = pct + '%';
+                    dailyFill.style.background = pct >= 100 ? 'var(--danger)' : '';
+                }
+                if (weeklyBar) weeklyBar.style.display = '';
+                if (weeklyFill) {
+                    weeklyFill.style.width = wPct + '%';
+                    weeklyFill.style.background = wPct >= 100 ? 'var(--danger)' : 'linear-gradient(90deg, #a78bfa, #c084fc)';
+                }
+            }
+
+            const blockBtn = card.querySelector('[data-btn="block"]');
+            if (blockBtn) {
+                blockBtn.className = `btn-small ${u.status !== 'blocked' ? 'btn-danger' : 'btn-success'}`;
+                blockBtn.textContent = u.status === 'blocked' ? 'إلغاء الحظر' : 'حظر الإنترنت';
+                blockBtn.setAttribute('onclick', `updateUser(${u.id}, '${u.status === 'blocked' ? 'active' : 'blocked'}', ${u.daily_limit_mb}, ${weeklyLimit})`);
+            }
+
+            const unlimitedBtn = card.querySelector('[data-btn="unlimited"]');
+            if (unlimitedBtn) {
+                unlimitedBtn.textContent = u.status === 'unlimited' ? 'إلغاء غير المحدود' : 'إنترنت غير محدود';
+                unlimitedBtn.setAttribute('onclick', `updateUser(${u.id}, '${u.status === 'unlimited' ? 'active' : 'unlimited'}', ${u.daily_limit_mb}, ${weeklyLimit})`);
+            }
         }
 
         async function updateUser(id, status, daily_limit, weekly_limit) {
