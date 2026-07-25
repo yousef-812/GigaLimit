@@ -255,7 +255,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     } else {
       try {
-        await _vpnChannel.invokeMethod('startVpn', {'server_ip': serverIp});
+        await _vpnChannel.invokeMethod('startVpn', {
+          'server_ip': serverIp,
+          'device_id': deviceId,
+        });
         if (mounted) setState(() => _vpnConnected = true);
       } catch (e) {
         if (mounted) {

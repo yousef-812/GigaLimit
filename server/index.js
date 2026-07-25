@@ -106,10 +106,19 @@ app.post('/api/register', (req, res) => {
 });
 
 app.post('/api/ping', (req, res) => {
+    // This request can travel through the VPN proxy, where its source becomes
+    // the server itself. IP changes are accepted only from network_ping below.
+    res.json({ success: true });
+});
+
+app.post('/api/network_ping', (req, res) => {
     const { device_id } = req.body;
     const ip = getCleanIp(req);
+    const user = db.getUserByDeviceId(device_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
     db.updateUserIp(device_id, ip);
-    res.json({ success: true });
+    res.json({ success: true, registered_ip: ip });
 });
 
 app.post('/api/clear_notification', (req, res) => {
@@ -144,11 +153,6 @@ app.get('/api/status/:device_id', (req, res) => {
     
     const user = db.getUserByDeviceId(device_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    
-    if (user.current_ip !== ip) {
-        db.updateUserIp(device_id, ip);
-        user.current_ip = ip;
-    }
     
     const bytes_used = db.getUsage(user.id, today);
     const weekly_bytes_used = db.getWeeklyUsage(user.id);

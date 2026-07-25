@@ -13,6 +13,7 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.gigalimit.vpn"
     private var vpnResult: MethodChannel.Result? = null
     private var pendingServerIp: String? = null
+    private var pendingDeviceId: String? = null
     private val VPN_REQUEST_CODE = 1001
     private external fun getNativeDebug(): Array<String>
 
@@ -24,18 +25,20 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "startVpn" -> {
                         val serverIp = call.argument<String>("server_ip")
-                        if (serverIp == null) {
-                            result.error("INVALID_ARGS", "server_ip required", null)
+                        val deviceId = call.argument<String>("device_id")
+                        if (serverIp == null || deviceId == null) {
+                            result.error("INVALID_ARGS", "server_ip and device_id required", null)
                             return@setMethodCallHandler
                         }
 
                         val vpnIntent = VpnService.prepare(this)
                         if (vpnIntent != null) {
                             pendingServerIp = serverIp
+                            pendingDeviceId = deviceId
                             vpnResult = result
                             startActivityForResult(vpnIntent, VPN_REQUEST_CODE)
                         } else {
-                            startVpnService(serverIp)
+                            startVpnService(serverIp, deviceId)
                             result.success(true)
                         }
                     }
@@ -68,8 +71,9 @@ class MainActivity : FlutterActivity() {
         if (requestCode == VPN_REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
                 val serverIp = pendingServerIp
-                if (serverIp != null) {
-                    startVpnService(serverIp)
+                val deviceId = pendingDeviceId
+                if (serverIp != null && deviceId != null) {
+                    startVpnService(serverIp, deviceId)
                     vpnResult?.success(true)
                 } else {
                     vpnResult?.error("NO_SERVER", "Server IP not available", null)
@@ -78,13 +82,15 @@ class MainActivity : FlutterActivity() {
                 vpnResult?.error("VPN_DENIED", "VPN permission denied by user", null)
             }
             pendingServerIp = null
+            pendingDeviceId = null
             vpnResult = null
         }
     }
 
-    private fun startVpnService(serverIp: String) {
+    private fun startVpnService(serverIp: String, deviceId: String) {
         val intent = Intent(this, VpnProxyService::class.java)
         intent.putExtra("server_ip", serverIp)
+        intent.putExtra("device_id", deviceId)
         startForegroundService(intent)
     }
 }

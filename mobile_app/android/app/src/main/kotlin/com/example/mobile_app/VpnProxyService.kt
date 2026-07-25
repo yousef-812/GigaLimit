@@ -6,11 +6,17 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import android.util.Log
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.util.ArrayDeque
 
 class VpnProxyService : VpnService() {
@@ -71,6 +77,8 @@ class VpnProxyService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var vpnThread: Thread? = null
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -90,12 +98,17 @@ class VpnProxyService : VpnService() {
             stopSelf()
             return START_NOT_STICKY
         }
+        val deviceId = intent.getStringExtra("device_id") ?: run {
+            addDebug("VPN start rejected: missing device ID")
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
-        startVpn(serverIp)
+        startVpn(serverIp, deviceId)
         return START_STICKY
     }
 
-    private fun startVpn(serverIp: String) {
+    private fun startVpn(serverIp: String, deviceId: String) {
         addDebug("VPN start requested for $serverIp:1080")
         if (!nativeLibraryLoaded) {
             Log.e(TAG, "libtun2socks.so is missing from this APK")
@@ -137,7 +150,60 @@ class VpnProxyService : VpnService() {
         acquireWakeLock()
         isRunning = true
         addDebug("VPN interface established")
+        reportPhysicalIp(serverIp, deviceId)
+        monitorNetworkChanges(serverIp, deviceId)
         startTun2socks(serverIp)
+    }
+
+    private fun reportPhysicalIp(serverIp: String, deviceId: String) {
+        Thread({
+            try {
+                Socket().use { socket ->
+                    if (!protect(socket)) {
+                        addDebug("Physical IP report failed: socket protection rejected")
+                        return@Thread
+                    }
+                    socket.connect(InetSocketAddress(serverIp, 3001), 5000)
+                    val body = "{\"device_id\":\"${deviceId.replace("\\", "\\\\").replace("\"", "\\\"")}\"}"
+                    val request = "POST /api/network_ping HTTP/1.1\r\n" +
+                        "Host: $serverIp\r\n" +
+                        "Content-Type: application/json\r\n" +
+                        "Content-Length: ${body.toByteArray().size}\r\n" +
+                        "Connection: close\r\n\r\n$body"
+                    socket.getOutputStream().write(request.toByteArray())
+                    socket.getOutputStream().flush()
+                    addDebug("Physical IP report sent")
+                }
+            } catch (e: Exception) {
+                addDebug("Physical IP report failed: ${e.message}")
+            }
+        }, "physical-ip-report").start()
+    }
+
+    private fun monitorNetworkChanges(serverIp: String, deviceId: String) {
+        val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                addDebug("Physical network became available")
+                reportPhysicalIp(serverIp, deviceId)
+            }
+
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: android.net.LinkProperties) {
+                addDebug("Physical network properties changed")
+                reportPhysicalIp(serverIp, deviceId)
+            }
+        }
+        try {
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                .build()
+            manager.registerNetworkCallback(request, callback)
+            connectivityManager = manager
+            networkCallback = callback
+        } catch (e: Exception) {
+            addDebug("Network monitor registration failed: ${e.message}")
+        }
     }
 
     private fun startTun2socks(serverIp: String) {
@@ -232,6 +298,13 @@ class VpnProxyService : VpnService() {
     private fun stopVpn() {
         addDebug("VPN stopping")
         isRunning = false
+        try {
+            networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+            networkCallback = null
+            connectivityManager = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error unregistering network monitor", e)
+        }
         try {
             stopNativeTun2Socks()
         } catch (e: Exception) {
