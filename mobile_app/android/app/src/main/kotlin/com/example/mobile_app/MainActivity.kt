@@ -48,7 +48,7 @@ class MainActivity : FlutterActivity() {
                         result.success(VpnProxyService.isRunning)
                     }
                     "getVpnDebug" -> {
-                        result.success(VpnProxyService.takeDebugMessages())
+                        result.success(VpnProxyService.takeDebugMessages(this))
                     }
                     else -> result.notImplemented()
                 }

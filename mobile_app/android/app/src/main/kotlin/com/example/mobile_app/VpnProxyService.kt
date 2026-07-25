@@ -24,17 +24,31 @@ class VpnProxyService : VpnService() {
             private set
         private var nativeLibraryLoaded = false
         private val debugMessages = ArrayDeque<String>()
+        private const val DEBUG_PREFERENCES = "vpn_debug"
+        private const val DEBUG_LOGS_KEY = "logs"
+        private var debugContext: Context? = null
 
         @Synchronized
         private fun addDebug(message: String) {
             while (debugMessages.size >= 100) debugMessages.removeFirst()
             debugMessages.addLast("${System.currentTimeMillis()} $message")
+            debugContext?.getSharedPreferences(DEBUG_PREFERENCES, Context.MODE_PRIVATE)
+                ?.edit()
+                ?.putString(DEBUG_LOGS_KEY, debugMessages.joinToString("\n"))
+                ?.apply()
         }
 
         @Synchronized
-        fun takeDebugMessages(): List<String> {
-            val messages = debugMessages.toList()
+        fun takeDebugMessages(context: Context): List<String> {
+            debugContext = context.applicationContext
+            val preferences = debugContext!!.getSharedPreferences(DEBUG_PREFERENCES, Context.MODE_PRIVATE)
+            val messages = preferences.getString(DEBUG_LOGS_KEY, "")
+                .orEmpty()
+                .lineSequence()
+                .filter { it.isNotBlank() }
+                .toList()
             debugMessages.clear()
+            preferences.edit().remove(DEBUG_LOGS_KEY).apply()
             return messages
         }
     }
@@ -64,16 +78,13 @@ class VpnProxyService : VpnService() {
         return protected
     }
 
-    fun reportNativeDebug(message: String) {
-        addDebug("Native: $message")
-    }
-
     private var vpnInterface: ParcelFileDescriptor? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var vpnThread: Thread? = null
 
     override fun onCreate() {
         super.onCreate()
+        debugContext = applicationContext
         addDebug("VPN service created")
     }
 

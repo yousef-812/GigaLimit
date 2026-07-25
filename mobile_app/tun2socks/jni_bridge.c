@@ -1,6 +1,5 @@
 #include <jni.h>
 #include <android/log.h>
-#include <stdlib.h>
 #include "_cgo_export.h"
 
 #define LOG_TAG "Tun2SocksNative"
@@ -10,7 +9,6 @@
 static JavaVM *java_vm;
 static jobject vpn_service;
 static jmethodID protect_socket_method;
-static jmethodID report_debug_method;
 
 static int set_vpn_service(JNIEnv *env, jobject service) {
     if ((*env)->GetJavaVM(env, &java_vm) != JNI_OK) {
@@ -29,35 +27,12 @@ static int set_vpn_service(JNIEnv *env, jobject service) {
 
     jclass service_class = (*env)->GetObjectClass(env, service);
     protect_socket_method = (*env)->GetMethodID(env, service_class, "protectSocket", "(I)Z");
-	    report_debug_method = (*env)->GetMethodID(env, service_class, "reportNativeDebug", "(Ljava/lang/String;)V");
     (*env)->DeleteLocalRef(env, service_class);
-    if (protect_socket_method == NULL || report_debug_method == NULL) {
-        LOGE("Failed to find VpnProxyService native callbacks");
+    if (protect_socket_method == NULL) {
+        LOGE("Failed to find VpnProxyService.protectSocket");
         return 0;
     }
     return 1;
-}
-
-void reportNativeDebug(const char *message) {
-    if (java_vm == NULL || vpn_service == NULL || report_debug_method == NULL) return;
-
-    JNIEnv *env = NULL;
-    int attached = 0;
-    jint status = (*java_vm)->GetEnv(java_vm, (void **)&env, JNI_VERSION_1_6);
-    if (status == JNI_EDETACHED) {
-        if ((*java_vm)->AttachCurrentThread(java_vm, &env, NULL) != JNI_OK) return;
-        attached = 1;
-    } else if (status != JNI_OK) {
-        return;
-    }
-
-    jstring java_message = (*env)->NewStringUTF(env, message);
-    if (java_message != NULL) {
-        (*env)->CallVoidMethod(env, vpn_service, report_debug_method, java_message);
-        (*env)->DeleteLocalRef(env, java_message);
-        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
-    }
-    if (attached) (*java_vm)->DetachCurrentThread(java_vm);
 }
 
 // Called from Go before connecting to the SOCKS server. Go worker threads are
