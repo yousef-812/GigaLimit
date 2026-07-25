@@ -481,8 +481,8 @@ try {
     if (ssl) {
         https.createServer(ssl, app).listen(API_PORT, '0.0.0.0', () => {
             console.log(`Giga Limit API running securely on HTTPS port ${API_PORT}`);
-            console.log(`Admin login: http://${localIP}:${API_PORT} (password in admin_credentials.txt)`);
-            console.log(`Local: http://localhost:${API_PORT}`);
+            console.log(`Admin login: https://${localIP}:${API_PORT} (password in admin_credentials.txt)`);
+            console.log(`Local: https://localhost:${API_PORT}`);
         });
     } else {
         throw new Error('No SSL');

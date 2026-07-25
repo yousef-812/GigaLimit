@@ -52,17 +52,58 @@ if (!data) data = { ...emptyData, settings: {}, users: [], usage: [] };
 if (data.settings.global_total_bytes_used === undefined) data.settings.global_total_bytes_used = 0;
 
 const writeAtomically = (filePath, value) => {
-    const tempPath = `${filePath}.tmp`;
+    const tempPath = `${filePath}.${process.pid}.tmp`;
     fs.writeFileSync(tempPath, JSON.stringify(value, null, 2));
-    fs.renameSync(tempPath, filePath);
+    let lastError;
+    for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+            fs.renameSync(tempPath, filePath);
+            return;
+        } catch (error) {
+            lastError = error;
+            if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) break;
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+        }
+    }
+
+    // OneDrive can temporarily lock the destination on Windows. Copying the
+    // completed temp file is a safe fallback and avoids terminating the server.
+    try {
+        fs.copyFileSync(tempPath, filePath);
+        fs.unlinkSync(tempPath);
+    } catch (error) {
+        try { fs.unlinkSync(tempPath); } catch (_) {}
+        throw lastError || error;
+    }
+};
+
+let saveRetryTimer = null;
+const scheduleSaveRetry = () => {
+    if (saveRetryTimer) return;
+    saveRetryTimer = setTimeout(() => {
+        saveRetryTimer = null;
+        save();
+    }, 1000);
+    saveRetryTimer.unref();
 };
 
 const save = () => {
-    writeAtomically(dbPath, data);
+    try {
+        writeAtomically(dbPath, data);
+        return true;
+    } catch (error) {
+        console.error(`[DB] Could not save database; retrying: ${error.code || error.message}`);
+        scheduleSaveRetry();
+        return false;
+    }
 };
 
 const saveBackup = () => {
-    writeAtomically(backupPath, data);
+    try {
+        writeAtomically(backupPath, data);
+    } catch (error) {
+        console.error(`[DB] Could not save backup: ${error.code || error.message}`);
+    }
 };
 
 if (!data.settings.admin_password || data.settings.admin_password === 'admin123') {
