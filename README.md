@@ -4,7 +4,12 @@ Giga Limit برنامج محلي لتحديد ومتابعة استهلاك ال
 
 ## ما الذي ستنزله؟
 
-من صفحة [Releases](https://github.com/yousef-812/GigaLimit/releases) نزّل الملفين الجاهزين التاليين:
+نزّل الملفين الجاهزين التاليين وضعهما في نفس المجلد:
+
+- [تحميل برنامج السيرفر لـWindows: GigaLimit_Server.exe](https://github.com/yousef-812/GigaLimit/releases/latest/download/GigaLimit_Server.exe)
+- [تحميل تطبيق Android: GigaLimit_App.apk](https://github.com/yousef-812/GigaLimit/releases/latest/download/GigaLimit_App.apk)
+
+يمكنك أيضاً فتح [صفحة كل الإصدارات](https://github.com/yousef-812/GigaLimit/releases) إذا احتجت إصداراً أقدم.
 
 ```text
 GigaLimit_Server.exe
@@ -21,7 +26,7 @@ GigaLimit\
   GigaLimit_App.apk
 ```
 
-> إذا لم تجد `GigaLimit_Server.exe` في إصدار معين، نزّله من الشخص أو الجهة التي تنشر الإصدار. لا يحتاج المستخدم العادي إلى تنزيل المشروع أو بنائه من المصدر.
+لا يحتاج المستخدم العادي إلى تنزيل المشروع أو بنائه من المصدر.
 
 ## قبل التشغيل
 
