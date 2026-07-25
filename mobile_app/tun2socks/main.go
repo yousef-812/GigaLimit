@@ -402,7 +402,9 @@ func handleUDP(ctx context.Context, req *udp.ForwarderRequest, socksHost string,
 	}
 
 	listenConfig := net.ListenConfig{Control: protectedControl}
-	packetConn, err := listenConfig.ListenPacket(ctx, "udp", "127.0.0.1:0")
+	// The SOCKS UDP relay is on the LAN, so this socket must use the physical
+	// interface. Binding to loopback prevents its datagrams from reaching it.
+	packetConn, err := listenConfig.ListenPacket(ctx, "udp4", "0.0.0.0:0")
 	if err != nil {
 		ctrlConn.Close()
 		gonetConn.Close()
