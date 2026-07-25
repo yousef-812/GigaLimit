@@ -159,6 +159,9 @@ class VpnProxyService : VpnService() {
         Thread({
             try {
                 Socket().use { socket ->
+                    // Socket() is lazy on Android. Bind first so it owns an FD
+                    // that VpnService.protect can exclude before connect().
+                    socket.bind(InetSocketAddress(0))
                     if (!protect(socket)) {
                         addDebug("Physical IP report failed: socket protection rejected")
                         return@Thread
