@@ -2,7 +2,9 @@ package main
 
 /*
 #cgo LDFLAGS: -llog
+#include <stdlib.h>
 int protectSocket(int fd);
+void appendNativeDebug(const char *message);
 */
 import "C"
 import (
@@ -17,6 +19,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/sagernet/gvisor/pkg/buffer"
 	"github.com/sagernet/gvisor/pkg/tcpip"
@@ -51,10 +54,17 @@ var tcpBufPool = sync.Pool{
 var globalCancel context.CancelFunc
 var globalMu sync.Mutex
 
+func nativeDebug(message string) {
+	cMessage := C.CString(message)
+	defer C.free(unsafe.Pointer(cMessage))
+	C.appendNativeDebug(cMessage)
+}
+
 func protectedControl(network, address string, rawConn syscall.RawConn) error {
 	var protectErr error
 	if err := rawConn.Control(func(fd uintptr) {
 		if C.protectSocket(C.int(fd)) == 0 {
+			nativeDebug(fmt.Sprintf("Failed to protect %s socket", network))
 			protectErr = fmt.Errorf("VpnService.protect failed for %s socket", network)
 		}
 	}); err != nil {
@@ -94,6 +104,7 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 	}
 
 	log.Printf("tun2socks: fd=%d proxy=socks5://%s:%d", goFd, host, port)
+	nativeDebug(fmt.Sprintf("Engine started; SOCKS server %s:%d", host, port))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	globalMu.Lock()
@@ -153,6 +164,12 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 	}
 	unix.CloseOnExec(dupFD)
 	tunFile := os.NewFile(uintptr(dupFD), "tun")
+	// Android closes the original ParcelFileDescriptor, but this duplicated FD
+	// remains open. Close it on cancellation so a blocking TUN read can exit.
+	go func() {
+		<-ctx.Done()
+		tunFile.Close()
+	}()
 
 	var wg sync.WaitGroup
 
@@ -160,11 +177,13 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 	go func() {
 		defer wg.Done()
 		defer cancel()
+		nativeDebug("TUN reader started")
 		buf := make([]byte, mtuVal+4)
 		for {
 			n, readErr := tunFile.Read(buf)
 			if readErr != nil {
 				log.Printf("tun2socks: TUN read stopped: %v", readErr)
+				nativeDebug(fmt.Sprintf("TUN read stopped: %v", readErr))
 				return
 			}
 			if n == 0 {
@@ -300,6 +319,7 @@ func handleTCP(ctx context.Context, req *tcp.ForwarderRequest, socksHost string,
 	id := req.ID()
 	dstIP := net.IP(id.LocalAddress.AsSlice())
 	dstPort := id.LocalPort
+	nativeDebug(fmt.Sprintf("TCP request to %s:%d", dstIP, dstPort))
 
 	var wq waiter.Queue
 	ep, tcpipErr := req.CreateEndpoint(&wq)
@@ -315,6 +335,7 @@ func handleTCP(ctx context.Context, req *tcp.ForwarderRequest, socksHost string,
 	proxyConn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", socksHost, socksPort))
 	if err != nil {
 		log.Printf("socks5 dial failed: %v", err)
+		nativeDebug(fmt.Sprintf("SOCKS TCP dial failed: %v", err))
 		gonetConn.Close()
 		return
 	}
@@ -325,16 +346,19 @@ func handleTCP(ctx context.Context, req *tcp.ForwarderRequest, socksHost string,
 		return
 	}
 	if err := socks5Handshake(proxyConn); err != nil {
+		nativeDebug(fmt.Sprintf("SOCKS handshake failed: %v", err))
 		proxyConn.Close()
 		gonetConn.Close()
 		return
 	}
 	if err := socks5Connect(proxyConn, dstIP, dstPort); err != nil {
+		nativeDebug(fmt.Sprintf("SOCKS CONNECT failed: %v", err))
 		proxyConn.Close()
 		gonetConn.Close()
 		return
 	}
 	proxyConn.SetDeadline(time.Time{})
+	nativeDebug(fmt.Sprintf("SOCKS CONNECT established for %s:%d", dstIP, dstPort))
 
 	pipeConn(gonetConn, proxyConn)
 }
@@ -349,6 +373,7 @@ func handleUDP(ctx context.Context, req *udp.ForwarderRequest, socksHost string,
 	id := req.ID()
 	dstIP := net.IP(id.LocalAddress.AsSlice())
 	dstPort := id.LocalPort
+	nativeDebug(fmt.Sprintf("UDP request to %s:%d", dstIP, dstPort))
 
 	var wq waiter.Queue
 	ep, tcpipErr := req.CreateEndpoint(&wq)
@@ -360,6 +385,7 @@ func handleUDP(ctx context.Context, req *udp.ForwarderRequest, socksHost string,
 	d := protectedDialer()
 	ctrlConn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", socksHost, socksPort))
 	if err != nil {
+		nativeDebug(fmt.Sprintf("SOCKS UDP control dial failed: %v", err))
 		gonetConn.Close()
 		return
 	}

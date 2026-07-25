@@ -14,6 +14,7 @@ class MainActivity : FlutterActivity() {
     private var vpnResult: MethodChannel.Result? = null
     private var pendingServerIp: String? = null
     private val VPN_REQUEST_CODE = 1001
+    private external fun getNativeDebug(): Array<String>
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -48,7 +49,13 @@ class MainActivity : FlutterActivity() {
                         result.success(VpnProxyService.isRunning)
                     }
                     "getVpnDebug" -> {
-                        result.success(VpnProxyService.takeDebugMessages(this))
+                        val logs = VpnProxyService.takeDebugMessages(this).toMutableList()
+                        try {
+                            logs.addAll(getNativeDebug())
+                        } catch (_: Throwable) {
+                            // The VPN library has not loaded yet.
+                        }
+                        result.success(logs)
                     }
                     else -> result.notImplemented()
                 }
