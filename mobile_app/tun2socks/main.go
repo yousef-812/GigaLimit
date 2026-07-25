@@ -2,7 +2,9 @@ package main
 
 /*
 #cgo LDFLAGS: -llog
+#include <stdlib.h>
 int protectSocket(int fd);
+void reportNativeDebug(const char *message);
 */
 import "C"
 import (
@@ -17,6 +19,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/sagernet/gvisor/pkg/buffer"
 	"github.com/sagernet/gvisor/pkg/tcpip"
@@ -51,10 +54,17 @@ var tcpBufPool = sync.Pool{
 var globalCancel context.CancelFunc
 var globalMu sync.Mutex
 
+func nativeDebug(message string) {
+	cMessage := C.CString(message)
+	defer C.free(unsafe.Pointer(cMessage))
+	C.reportNativeDebug(cMessage)
+}
+
 func protectedControl(network, address string, rawConn syscall.RawConn) error {
 	var protectErr error
 	if err := rawConn.Control(func(fd uintptr) {
 		if C.protectSocket(C.int(fd)) == 0 {
+			nativeDebug(fmt.Sprintf("Failed to protect %s socket", network))
 			protectErr = fmt.Errorf("VpnService.protect failed for %s socket", network)
 		}
 	}); err != nil {
@@ -94,6 +104,7 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 	}
 
 	log.Printf("tun2socks: fd=%d proxy=socks5://%s:%d", goFd, host, port)
+	nativeDebug(fmt.Sprintf("Engine starting with SOCKS server %s:%d", host, port))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	globalMu.Lock()
@@ -165,6 +176,7 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 			n, readErr := tunFile.Read(buf)
 			if readErr != nil {
 				log.Printf("tun2socks: TUN read stopped: %v", readErr)
+				nativeDebug(fmt.Sprintf("TUN read stopped: %v", readErr))
 				return
 			}
 			if n == 0 {
@@ -212,6 +224,7 @@ func goStartTun2Socks(fd C.int, socksAddr *C.char) C.int {
 	tunFile.Close()
 	s.Close()
 	log.Printf("tun2socks: engine stopped")
+	nativeDebug("Engine stopped")
 	return 0
 }
 

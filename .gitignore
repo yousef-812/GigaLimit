@@ -23,6 +23,7 @@ server/node_modules/
 server/giga_limit_db.json
 server/giga_limit_db.json.bak
 server/admin_credentials.txt
+server/vpn_debug.log
 server/GigaLimit_Server.exe
 server/server.key
 server/server.cert

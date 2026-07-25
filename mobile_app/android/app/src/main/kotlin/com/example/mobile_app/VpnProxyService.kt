@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import android.util.Log
+import java.util.ArrayDeque
 
 class VpnProxyService : VpnService() {
 
@@ -22,6 +23,20 @@ class VpnProxyService : VpnService() {
         var isRunning = false
             private set
         private var nativeLibraryLoaded = false
+        private val debugMessages = ArrayDeque<String>()
+
+        @Synchronized
+        private fun addDebug(message: String) {
+            while (debugMessages.size >= 100) debugMessages.removeFirst()
+            debugMessages.addLast("${System.currentTimeMillis()} $message")
+        }
+
+        @Synchronized
+        fun takeDebugMessages(): List<String> {
+            val messages = debugMessages.toList()
+            debugMessages.clear()
+            return messages
+        }
     }
 
     init {
@@ -29,8 +44,10 @@ class VpnProxyService : VpnService() {
             System.loadLibrary("tun2socks")
             nativeLibraryLoaded = true
             Log.i(TAG, "Loaded libtun2socks.so via JNI")
+            addDebug("Native library loaded")
         } catch (e: UnsatisfiedLinkError) {
             Log.e(TAG, "Failed to load libtun2socks.so", e)
+            addDebug("Native library load failed: ${e.message}")
         }
     }
 
@@ -47,21 +64,28 @@ class VpnProxyService : VpnService() {
         return protected
     }
 
+    fun reportNativeDebug(message: String) {
+        addDebug("Native: $message")
+    }
+
     private var vpnInterface: ParcelFileDescriptor? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var vpnThread: Thread? = null
 
     override fun onCreate() {
         super.onCreate()
+        addDebug("VPN service created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            addDebug("VPN stop requested")
             stopVpn()
             return START_NOT_STICKY
         }
 
         val serverIp = intent?.getStringExtra("server_ip") ?: run {
+            addDebug("VPN start rejected: missing server IP")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -71,8 +95,10 @@ class VpnProxyService : VpnService() {
     }
 
     private fun startVpn(serverIp: String) {
+        addDebug("VPN start requested for $serverIp:1080")
         if (!nativeLibraryLoaded) {
             Log.e(TAG, "libtun2socks.so is missing from this APK")
+            addDebug("VPN start failed: native library is missing")
             stopSelf()
             return
         }
@@ -92,12 +118,14 @@ class VpnProxyService : VpnService() {
             vpnInterface = builder.establish()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to establish VPN", e)
+            addDebug("VPN establish failed: ${e.message}")
             stopSelf()
             return
         }
 
         if (vpnInterface == null) {
             Log.e(TAG, "VPN interface is null - user denied or VPN already active")
+            addDebug("VPN establish returned a null interface")
             stopSelf()
             return
         }
@@ -107,6 +135,7 @@ class VpnProxyService : VpnService() {
 
         acquireWakeLock()
         isRunning = true
+        addDebug("VPN interface established")
         startTun2socks(serverIp)
     }
 
@@ -123,11 +152,13 @@ class VpnProxyService : VpnService() {
                 Log.i(TAG, "Calling native startTun2Socks: fd=$fd, addr=$socksAddr")
                 val result = startNativeTun2Socks(fd, socksAddr)
                 Log.i(TAG, "native startTun2Socks returned: $result")
+                addDebug("Native engine exited with result $result")
                 if (isRunning) {
                     stopVpn()
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "tun2socks native error", e)
+                addDebug("Native engine crashed: ${e.message}")
                 if (isRunning) {
                     stopVpn()
                 }
@@ -198,6 +229,7 @@ class VpnProxyService : VpnService() {
     }
 
     private fun stopVpn() {
+        addDebug("VPN stopping")
         isRunning = false
         try {
             stopNativeTun2Socks()
@@ -238,6 +270,7 @@ class VpnProxyService : VpnService() {
     }
 
     override fun onRevoke() {
+        addDebug("VPN permission revoked by Android")
         stopVpn()
         super.onRevoke()
     }

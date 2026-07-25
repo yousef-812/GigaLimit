@@ -209,7 +209,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _initConnectivity();
     _loadData();
     _checkVpnStatus();
-    _vpnStatusTimer = Timer.periodic(const Duration(seconds: 2), (_) => _checkVpnStatus());
+    _vpnStatusTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _checkVpnStatus();
+      _flushVpnDebug();
+    });
   }
 
   @override
@@ -224,6 +227,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) setState(() => _vpnConnected = result == true);
     } catch (e) {
       print('VPN status check failed: $e');
+    }
+  }
+
+  Future<void> _flushVpnDebug() async {
+    if (serverIp.isEmpty || deviceId.isEmpty) return;
+    try {
+      final logs = await _vpnChannel.invokeMethod<List<dynamic>>('getVpnDebug');
+      if (logs == null || logs.isEmpty) return;
+      await http.post(
+        Uri.parse('https://$serverIp:3000/api/debug'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'device_id': deviceId, 'logs': logs}),
+      );
+    } catch (_) {
+      // Diagnostics must never interrupt the VPN or the user interface.
     }
   }
 
@@ -318,6 +336,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     _fetchStats();
     _pingServer();
+    _flushVpnDebug();
   }
 
   Future<void> _fetchStats() async {

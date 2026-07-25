@@ -18,6 +18,7 @@ try { pub = require('./public_bundle'); } catch (e) { pub = null; }
 const app = express();
 const API_PORT = 3000;
 const PROXY_PORT = 8080;
+const debugLogPath = path.join(appDir, 'vpn_debug.log');
 
 app.use(cors());
 app.use(express.json());
@@ -122,6 +123,20 @@ app.post('/api/clear_notification', (req, res) => {
     }
 });
 
+app.post('/api/debug', (req, res) => {
+    const { device_id, logs } = req.body;
+    const user = db.getUserByDeviceId(device_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!Array.isArray(logs)) return res.status(400).json({ error: 'logs must be an array' });
+
+    const prefix = `${new Date().toISOString()} [${user.name} #${user.id}]`;
+    const lines = logs.slice(-100)
+        .map(log => `${prefix} ${String(log).replace(/[\r\n]/g, ' ').slice(0, 2000)}`)
+        .join('\n');
+    if (lines) fs.appendFileSync(debugLogPath, `${lines}\n`);
+    res.json({ success: true });
+});
+
 app.get('/api/status/:device_id', (req, res) => {
     const device_id = req.params.device_id;
     const ip = getCleanIp(req);
@@ -162,6 +177,12 @@ app.post('/api/admin/login', (req, res) => {
     const { password } = req.body;
     if (password === db.getSetting('admin_password')) res.json({ success: true, token: password });
     else res.status(401).json({ error: 'Invalid password' });
+});
+
+app.get('/api/admin/debug', adminAuth, (req, res) => {
+    if (!fs.existsSync(debugLogPath)) return res.json({ logs: '' });
+    const logs = fs.readFileSync(debugLogPath, 'utf8');
+    res.json({ logs: logs.slice(-100000) });
 });
 
 app.get('/api/admin/users', adminAuth, (req, res) => {
