@@ -278,8 +278,8 @@
             <div class="limit-input-group" style="width: 100%; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                 <div class="field"><label class="field-label">الحد اليومي (MB)</label><input type="number" id="global-limit" style="width: 100%;"></div>
                 <div class="field"><label class="field-label">الحد الأسبوعي (MB)</label><input type="number" id="global-weekly-limit" style="width: 100%;"></div>
-                <div class="field"><label class="field-label">السرعة العادية، 0 = مفتوحة</label><div style="display:flex; gap:4px;"><input type="number" id="global-speed-limit" min="0"><select id="global-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select></div></div>
-                <div class="field"><label class="field-label">السرعة بعد انتهاء الحصة، 0 = قطع</label><div style="display:flex; gap:4px;"><input type="number" id="global-exhausted-speed-limit" min="0"><select id="global-exhausted-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select></div></div>
+                <div class="field"><label class="field-label">السرعة العادية، 0 = مفتوحة</label><div style="display:flex; gap:4px;"><input type="number" id="global-speed-limit" min="0"><select id="global-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select></div><span style="font-size:0.7rem; color:var(--text-muted);">1 MB/s = 8 Mbps</span></div>
+                <div class="field"><label class="field-label">السرعة بعد انتهاء الحصة، 0 = قطع</label><div style="display:flex; gap:4px;"><input type="number" id="global-exhausted-speed-limit" min="0"><select id="global-exhausted-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select></div><span style="font-size:0.7rem; color:var(--text-muted);">1 MB/s = 8 Mbps</span></div>
                 <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px; background: var(--primary); color: var(--bg);">حفظ</button>
                 <span id="global-msg" style="color: var(--success); font-size: 0.875rem; display: none;">تم الحفظ</span>
             </div>
@@ -497,14 +497,16 @@
                     <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">حفظ الحدود</button>
                 </div>
                 <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
-                    <div style="display:flex; gap: 0.5rem; align-items:center;">
-                        <div class="field"><label class="field-label">السرعة العادية، 0 = مفتوحة</label><input type="number" min="0" id="speed-${u.id}" value="${userSpeed.value}"></div>
-                        <select id="speed-unit-${u.id}">${speedUnitOptions(userSpeed.unit)}</select>
-                    </div>
-                    <div style="display:flex; gap: 0.5rem; align-items:center;">
-                        <div class="field"><label class="field-label">بعد انتهاء الحصة، 0 = قطع</label><input type="number" min="0" id="exhausted-speed-${u.id}" value="${exhaustedSpeed.value}"></div>
-                        <select id="exhausted-speed-unit-${u.id}">${speedUnitOptions(exhaustedSpeed.unit)}</select>
-                    </div>
+                        <div style="display:flex; gap: 0.5rem; align-items:center;">
+                            <div class="field"><label class="field-label">السرعة العادية، 0 = مفتوحة</label><input type="number" min="0" id="speed-${u.id}" value="${userSpeed.value}"></div>
+                            <select id="speed-unit-${u.id}">${speedUnitOptions(userSpeed.unit)}</select>
+                            <span style="font-size:0.7rem; color:var(--text-muted); white-space:nowrap;">1 MB/s = 8 Mbps</span>
+                        </div>
+                        <div style="display:flex; gap: 0.5rem; align-items:center;">
+                            <div class="field"><label class="field-label">بعد انتهاء الحصة، 0 = قطع</label><input type="number" min="0" id="exhausted-speed-${u.id}" value="${exhaustedSpeed.value}"></div>
+                            <select id="exhausted-speed-unit-${u.id}">${speedUnitOptions(exhaustedSpeed.unit)}</select>
+                            <span style="font-size:0.7rem; color:var(--text-muted); white-space:nowrap;">1 MB/s = 8 Mbps</span>
+                        </div>
                     <button class="btn-small" onclick="updateSpeed(${u.id}, '${u.status}', ${u.daily_limit_mb}, ${weeklyLimit})">حفظ السرعة</button>
                 </div>
                 <div class="card-actions">

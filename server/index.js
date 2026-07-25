@@ -319,7 +319,7 @@ const proxyServer = http.createServer((req, res) => {
     try {
         const proxyReq = http.request(options, (proxyRes) => {
             res.writeHead(proxyRes.statusCode, proxyRes.headers);
-            rateLimitedPipe(proxyRes, res, () => getSpeedForIp(clientIp));
+            rateLimitedPipe(proxyRes, res, () => getSpeedForIp(clientIp), clientIp);
         });
 
         proxyReq.on('error', (e) => {
@@ -332,7 +332,7 @@ const proxyServer = http.createServer((req, res) => {
         req.on('error', () => {});
         res.on('error', () => {});
 
-        rateLimitedPipe(req, proxyReq, () => getSpeedForIp(clientIp));
+        rateLimitedPipe(req, proxyReq, () => getSpeedForIp(clientIp), clientIp);
     } catch (err) {
         console.error('Invalid Proxy Request:', err.message);
         if (!res.headersSent) {
@@ -366,13 +366,56 @@ function getSpeedForIp(ip) {
     return getEffectiveUserSpeed(db.getUserByIp(ip));
 }
 
-function rateLimitedPipe(source, destination, getSpeed) {
+const bucketRegistry = new Map();
+
+function getBucket(ip) {
+    let bucket = bucketRegistry.get(ip);
+    if (!bucket) {
+        bucket = { tokens: 0, lastRefill: Date.now(), speedBps: 0 };
+        bucketRegistry.set(ip, bucket);
+    }
+    return bucket;
+}
+
+function consumeTokens(bucket, bytes, speedBps) {
+    if (speedBps !== bucket.speedBps) {
+        bucket.tokens = Math.min(bucket.tokens, speedBps);
+        bucket.speedBps = speedBps;
+    }
+    const now = Date.now();
+    const elapsed = (now - bucket.lastRefill) / 1000;
+    bucket.tokens = Math.min(speedBps, bucket.tokens + elapsed * speedBps);
+    bucket.lastRefill = now;
+
+    if (bucket.tokens >= bytes) {
+        bucket.tokens -= bytes;
+        return 0;
+    }
+    const deficit = bytes - bucket.tokens;
+    const delayMs = (deficit / speedBps) * 1000;
+    bucket.tokens = 0;
+    return delayMs;
+}
+
+setInterval(() => {
+    for (const [ip, bucket] of bucketRegistry) {
+        const now = Date.now();
+        const elapsed = (now - bucket.lastRefill) / 1000;
+        bucket.tokens = Math.min(bucket.speedBps, bucket.tokens + elapsed * bucket.speedBps);
+        bucket.lastRefill = now;
+    }
+}, 1000);
+
+function rateLimitedPipe(source, destination, getSpeed, ip) {
     const limiter = new Transform({
         transform(chunk, encoding, callback) {
             const bytesPerSecond = getSpeed();
-            if (bytesPerSecond === Infinity) return callback(null, chunk);
+            if (bytesPerSecond === Infinity || !bytesPerSecond) return callback(null, chunk);
             if (bytesPerSecond <= 0) return callback(new Error('User speed limit reached'));
-            setTimeout(() => callback(null, chunk), Math.max(1, Math.ceil((chunk.length / bytesPerSecond) * 1000)));
+            const bucket = getBucket(ip);
+            const delay = consumeTokens(bucket, chunk.length, bytesPerSecond);
+            if (delay <= 0) return callback(null, chunk);
+            setTimeout(() => callback(null, chunk), Math.ceil(delay));
         }
     });
     limiter.on('error', () => {
@@ -382,12 +425,15 @@ function rateLimitedPipe(source, destination, getSpeed) {
     source.pipe(limiter).pipe(destination);
 }
 
-function sendRateLimitedUdp(socket, message, port, host, getSpeed) {
+function sendRateLimitedUdp(socket, message, port, host, getSpeed, ip) {
     const bytesPerSecond = getSpeed();
     if (bytesPerSecond <= 0) return;
     const send = () => socket.send(message, port, host);
-    if (bytesPerSecond === Infinity) return send();
-    setTimeout(send, Math.max(1, Math.ceil((message.length / bytesPerSecond) * 1000)));
+    if (bytesPerSecond === Infinity || !bytesPerSecond) return send();
+    const bucket = getBucket(ip);
+    const delay = consumeTokens(bucket, message.length, bytesPerSecond);
+    if (delay <= 0) return send();
+    setTimeout(send, Math.ceil(delay));
 }
 
 const isAllowed = (ip) => {
@@ -427,8 +473,8 @@ proxyServer.on('connect', (req, clientSocket, head) => {
         const serverSocket = net.connect(port || 443, hostname, () => {
             clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
             serverSocket.write(head);
-            rateLimitedPipe(clientSocket, serverSocket, () => getSpeedForIp(clientIp));
-            rateLimitedPipe(serverSocket, clientSocket, () => getSpeedForIp(clientIp));
+            rateLimitedPipe(clientSocket, serverSocket, () => getSpeedForIp(clientIp), clientIp);
+            rateLimitedPipe(serverSocket, clientSocket, () => getSpeedForIp(clientIp), clientIp);
         });
 
         const user = db.getUserByIp(clientIp);
@@ -588,8 +634,8 @@ const socksServer = net.createServer((clientSocket) => {
                 const serverSocket = net.connect(port, host, () => {
                     const reply = Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
                     clientSocket.write(reply);
-                    rateLimitedPipe(clientSocket, serverSocket, () => getSpeedForIp(clientIp));
-                    rateLimitedPipe(serverSocket, clientSocket, () => getSpeedForIp(clientIp));
+                    rateLimitedPipe(clientSocket, serverSocket, () => getSpeedForIp(clientIp), clientIp);
+                    rateLimitedPipe(serverSocket, clientSocket, () => getSpeedForIp(clientIp), clientIp);
                 });
 
                 const user = db.getUserByIp(clientIp);
@@ -667,7 +713,7 @@ function handleSocksUdpAssociation(clientSocket, clientIp) {
 
             if (message.length < portOffset + 2) return;
             const port = message.readUInt16BE(portOffset);
-            sendRateLimitedUdp(relay, message.subarray(portOffset + 2), port, host, () => getSpeedForIp(clientIp));
+                sendRateLimitedUdp(relay, message.subarray(portOffset + 2), port, host, () => getSpeedForIp(clientIp), clientIp);
             return;
         }
 
@@ -679,7 +725,7 @@ function handleSocksUdpAssociation(clientSocket, clientIp) {
             ...octets,
             rinfo.port >> 8, rinfo.port & 0xff
         ]);
-        sendRateLimitedUdp(relay, Buffer.concat([header, message]), clientUdpPort, clientIp, () => getSpeedForIp(clientIp));
+                sendRateLimitedUdp(relay, Buffer.concat([header, message]), clientUdpPort, clientIp, () => getSpeedForIp(clientIp), clientIp);
     });
 
     relay.bind(0, '0.0.0.0', () => {
