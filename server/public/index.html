@@ -70,7 +70,7 @@
             color: var(--primary);
         }
 
-        input {
+        input, select {
             width: 100%;
             padding: 12px 16px;
             margin: 8px 0;
@@ -89,6 +89,7 @@
             border-color: var(--primary);
             box-shadow: 0 0 0 2px rgba(255, 239, 179, 0.3);
         }
+        select { width: auto; margin: 8px 0; }
 
         button {
             width: 100%;
@@ -275,6 +276,10 @@
             <div class="limit-input-group" style="width: 100%; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                 <input type="number" id="global-limit" placeholder="Daily Limit (MB)" style="width: 150px;">
                 <input type="number" id="global-weekly-limit" placeholder="Weekly Limit (MB)" style="width: 150px;">
+                <input type="number" id="global-speed-limit" min="0" placeholder="Speed (0 = Open)" style="width: 150px;">
+                <select id="global-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select>
+                <input type="number" id="global-exhausted-speed-limit" min="0" placeholder="After quota (0 = Block)" style="width: 170px;">
+                <select id="global-exhausted-speed-unit"><option value="1024">KB/s</option><option value="1048576">MB/s</option></select>
                 <button class="btn-small" onclick="updateGlobalLimit()" style="width: 80px; background: var(--primary); color: var(--bg);">Save</button>
                 <span id="global-msg" style="color: var(--success); font-size: 0.875rem; display: none;">Saved!</span>
             </div>
@@ -291,6 +296,21 @@
         let secretClicks = 0;
         let secretMode = false;
         let secretTimeout;
+        let globalSettings = {};
+
+        function speedParts(bytesPerSecond) {
+            if (!bytesPerSecond) return { value: 0, unit: 1024 };
+            if (bytesPerSecond >= 1048576) return { value: bytesPerSecond / 1048576, unit: 1048576 };
+            return { value: bytesPerSecond / 1024, unit: 1024 };
+        }
+
+        function speedBps(value, unit) {
+            return Math.max(0, Math.round((Number(value) || 0) * Number(unit)));
+        }
+
+        function speedUnitOptions(selected) {
+            return `<option value="1024" ${selected === 1024 ? 'selected' : ''}>KB/s</option><option value="1048576" ${selected === 1048576 ? 'selected' : ''}>MB/s</option>`;
+        }
 
         function handleSecretClick() {
             secretClicks++;
@@ -355,8 +375,15 @@
             if(!authToken) return;
             const res = await fetch('/api/admin/global_settings', { headers: { 'Authorization': authToken } });
             const data = await res.json();
+            globalSettings = data;
             document.getElementById('global-limit').value = data.global_limit;
             document.getElementById('global-weekly-limit').value = data.global_weekly_limit;
+            const speed = speedParts(data.global_speed_limit_bps);
+            const exhaustedSpeed = speedParts(data.global_exhausted_speed_limit_bps);
+            document.getElementById('global-speed-limit').value = speed.value;
+            document.getElementById('global-speed-unit').value = speed.unit;
+            document.getElementById('global-exhausted-speed-limit').value = exhaustedSpeed.value;
+            document.getElementById('global-exhausted-speed-unit').value = exhaustedSpeed.unit;
             
             // Format global total
             let totalBytes = data.global_total_bytes || 0;
@@ -369,10 +396,12 @@
         async function updateGlobalLimit() {
             const val = document.getElementById('global-limit').value;
             const wVal = document.getElementById('global-weekly-limit').value;
+            const speed = speedBps(document.getElementById('global-speed-limit').value, document.getElementById('global-speed-unit').value);
+            const exhaustedSpeed = speedBps(document.getElementById('global-exhausted-speed-limit').value, document.getElementById('global-exhausted-speed-unit').value);
             await fetch('/api/admin/global_settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
-                body: JSON.stringify({ global_limit: val, global_weekly_limit: wVal })
+                body: JSON.stringify({ global_limit: val, global_weekly_limit: wVal, global_speed_limit_bps: speed, global_exhausted_speed_limit_bps: exhaustedSpeed })
             });
             const msg = document.getElementById('global-msg');
             msg.style.display = 'inline';
@@ -437,6 +466,8 @@
                 const isFocused = (limitInput && limitInput === document.activeElement) || (wLimitInput && wLimitInput === document.activeElement);
                 const currentInputValue = (limitInput && isFocused) ? limitInput.value : u.daily_limit_mb;
                 const currentWInputValue = (wLimitInput && isFocused) ? wLimitInput.value : weeklyLimit;
+                const userSpeed = speedParts(u.speed_limit_bps ?? globalSettings.global_speed_limit_bps);
+                const exhaustedSpeed = speedParts(u.exhausted_speed_limit_bps ?? globalSettings.global_exhausted_speed_limit_bps);
 
                 card.innerHTML = `
                     <div class="user-header">
@@ -462,6 +493,17 @@
                             <input type="number" id="wlimit-${u.id}" value="${currentWInputValue}" placeholder="Weekly Limit MB">
                         </div>
                         <button class="btn-small" onclick="updateUser(${u.id}, '${u.status}', document.getElementById('limit-${u.id}').value, document.getElementById('wlimit-${u.id}').value)">Save Limits</button>
+                    </div>
+                    <div class="limit-input-group" style="margin-top: 0.5rem; flex-direction: column;">
+                        <div style="display:flex; gap: 0.5rem; align-items:center;">
+                            <input type="number" min="0" id="speed-${u.id}" value="${userSpeed.value}" placeholder="Speed (0 = Open)">
+                            <select id="speed-unit-${u.id}">${speedUnitOptions(userSpeed.unit)}</select>
+                        </div>
+                        <div style="display:flex; gap: 0.5rem; align-items:center;">
+                            <input type="number" min="0" id="exhausted-speed-${u.id}" value="${exhaustedSpeed.value}" placeholder="After quota (0 = Block)">
+                            <select id="exhausted-speed-unit-${u.id}">${speedUnitOptions(exhaustedSpeed.unit)}</select>
+                        </div>
+                        <button class="btn-small" onclick="updateSpeed(${u.id}, '${u.status}', ${u.daily_limit_mb}, ${weeklyLimit})">Save Speed</button>
                     </div>
                     <div class="card-actions">
                         <button class="btn-small" onclick="renewDaily(${u.id})">Renew Daily</button>
@@ -490,6 +532,17 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
                 body: JSON.stringify({ id, status, daily_limit_mb: daily_limit, weekly_limit_mb: weekly_limit })
+            });
+            loadUsers();
+        }
+
+        async function updateSpeed(id, status, daily_limit, weekly_limit) {
+            const speed = speedBps(document.getElementById(`speed-${id}`).value, document.getElementById(`speed-unit-${id}`).value);
+            const exhaustedSpeed = speedBps(document.getElementById(`exhausted-speed-${id}`).value, document.getElementById(`exhausted-speed-unit-${id}`).value);
+            await fetch('/api/admin/update_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': authToken },
+                body: JSON.stringify({ id, status, daily_limit_mb: daily_limit, weekly_limit_mb: weekly_limit, speed_limit_bps: speed, exhausted_speed_limit_bps: exhaustedSpeed })
             });
             loadUsers();
         }

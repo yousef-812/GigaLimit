@@ -7,6 +7,7 @@ const dgram = require('dgram');
 const url = require('url');
 const fs = require('fs');
 const os = require('os');
+const { Transform } = require('stream');
 const db = require('./db');
 
 const isPkg = typeof process.pkg !== 'undefined';
@@ -178,7 +179,7 @@ app.get('/api/status/:device_id', (req, res) => {
         daily_remaining_bytes: Math.max(0, daily_limit_bytes - bytes_used),
         weekly_usage_bytes: weekly_bytes_used,
         weekly_limit_bytes: weekly_limit_bytes,
-        can_connect: user.status === 'unlimited' || (user.status === 'active' && bytes_used < daily_limit_bytes && weekly_bytes_used < weekly_limit_bytes),
+        can_connect: getEffectiveUserSpeed(user) > 0,
         pending_notification: user.pending_notification || null
     });
 });
@@ -208,8 +209,8 @@ app.get('/api/admin/users', adminAuth, (req, res) => {
 });
 
 app.post('/api/admin/update_user', adminAuth, (req, res) => {
-    const { id, status, daily_limit_mb, weekly_limit_mb } = req.body;
-    if (db.updateUserSettings(id, status, daily_limit_mb, weekly_limit_mb)) {
+    const { id, status, daily_limit_mb, weekly_limit_mb, speed_limit_bps, exhausted_speed_limit_bps } = req.body;
+    if (db.updateUserSettings(id, status, daily_limit_mb, weekly_limit_mb, speed_limit_bps, exhausted_speed_limit_bps)) {
         res.json({ success: true });
     } else {
         res.status(400).json({ error: 'User not found' });
@@ -251,6 +252,8 @@ app.get('/api/admin/global_settings', adminAuth, (req, res) => {
     res.json({ 
         global_limit: db.getSetting('global_daily_limit_mb') || 1024,
         global_weekly_limit: db.getSetting('global_weekly_limit_mb') || 7000,
+        global_speed_limit_bps: db.getSetting('global_speed_limit_bps') || 0,
+        global_exhausted_speed_limit_bps: db.getSetting('global_exhausted_speed_limit_bps') || 0,
         global_total_bytes: db.getSetting('global_total_bytes_used') || 0,
         server_date: db.getLocalDateString(),
         server_time: new Date().toLocaleTimeString()
@@ -258,8 +261,8 @@ app.get('/api/admin/global_settings', adminAuth, (req, res) => {
 });
 
 app.post('/api/admin/global_settings', adminAuth, (req, res) => {
-    const { global_limit, global_weekly_limit } = req.body;
-    db.updateGlobalLimit(global_limit, global_weekly_limit);
+    const { global_limit, global_weekly_limit, global_speed_limit_bps, global_exhausted_speed_limit_bps } = req.body;
+    db.updateGlobalLimit(global_limit, global_weekly_limit, global_speed_limit_bps, global_exhausted_speed_limit_bps);
     res.json({ success: true });
 });
 
@@ -316,7 +319,7 @@ const proxyServer = http.createServer((req, res) => {
     try {
         const proxyReq = http.request(options, (proxyRes) => {
             res.writeHead(proxyRes.statusCode, proxyRes.headers);
-            proxyRes.pipe(res);
+            rateLimitedPipe(proxyRes, res, () => getSpeedForIp(clientIp));
         });
 
         proxyReq.on('error', (e) => {
@@ -329,7 +332,7 @@ const proxyServer = http.createServer((req, res) => {
         req.on('error', () => {});
         res.on('error', () => {});
 
-        req.pipe(proxyReq);
+        rateLimitedPipe(req, proxyReq, () => getSpeedForIp(clientIp));
     } catch (err) {
         console.error('Invalid Proxy Request:', err.message);
         if (!res.headersSent) {
@@ -340,6 +343,52 @@ const proxyServer = http.createServer((req, res) => {
 });
 
 const authCache = new Map();
+
+function getEffectiveUserSpeed(user) {
+    if (!user || user.status === 'blocked') return 0;
+    if (user.status === 'unlimited') return Infinity;
+
+    const today = db.getLocalDateString();
+    const dailyLimit = user.daily_limit_mb * 1024 * 1024;
+    const weeklyLimit = (user.weekly_limit_mb || (user.daily_limit_mb * 7)) * 1024 * 1024;
+    const exhausted = db.getUsage(user.id, today) >= dailyLimit || db.getWeeklyUsage(user.id) >= weeklyLimit;
+    const settingName = exhausted ? 'global_exhausted_speed_limit_bps' : 'global_speed_limit_bps';
+    const userSpeed = exhausted ? user.exhausted_speed_limit_bps : user.speed_limit_bps;
+    const speed = userSpeed === null || userSpeed === undefined
+        ? db.getSetting(settingName)
+        : userSpeed;
+
+    // 0 means unlimited before quota; after quota it means block by default.
+    return Number(speed) || (exhausted ? 0 : Infinity);
+}
+
+function getSpeedForIp(ip) {
+    return getEffectiveUserSpeed(db.getUserByIp(ip));
+}
+
+function rateLimitedPipe(source, destination, getSpeed) {
+    const limiter = new Transform({
+        transform(chunk, encoding, callback) {
+            const bytesPerSecond = getSpeed();
+            if (bytesPerSecond === Infinity) return callback(null, chunk);
+            if (bytesPerSecond <= 0) return callback(new Error('User speed limit reached'));
+            setTimeout(() => callback(null, chunk), Math.max(1, Math.ceil((chunk.length / bytesPerSecond) * 1000)));
+        }
+    });
+    limiter.on('error', () => {
+        source.destroy();
+        destination.destroy();
+    });
+    source.pipe(limiter).pipe(destination);
+}
+
+function sendRateLimitedUdp(socket, message, port, host, getSpeed) {
+    const bytesPerSecond = getSpeed();
+    if (bytesPerSecond <= 0) return;
+    const send = () => socket.send(message, port, host);
+    if (bytesPerSecond === Infinity) return send();
+    setTimeout(send, Math.max(1, Math.ceil((message.length / bytesPerSecond) * 1000)));
+}
 
 const isAllowed = (ip) => {
     const now = Date.now();
@@ -355,22 +404,7 @@ const isAllowed = (ip) => {
         return false;
     }
     
-    if (user.status === 'unlimited') {
-        authCache.set(ip, { allowed: true, user: user, time: now });
-        return true;
-    }
-
-    const bytes_used = db.getUsage(user.id, today);
-    const weekly_bytes_used = db.getWeeklyUsage(user.id);
-    const daily_limit_bytes = user.daily_limit_mb * 1024 * 1024;
-    const weekly_limit_bytes = (user.weekly_limit_mb || (user.daily_limit_mb * 7)) * 1024 * 1024;
-    
-    let allowed = false;
-    if (user.status === 'unlimited') {
-        allowed = true;
-    } else if (user.status === 'active') {
-        allowed = bytes_used < daily_limit_bytes && weekly_bytes_used < weekly_limit_bytes;
-    }
+    const allowed = getEffectiveUserSpeed(user) > 0;
     
     authCache.set(ip, { allowed, user: user, time: now });
     return allowed;
@@ -393,8 +427,8 @@ proxyServer.on('connect', (req, clientSocket, head) => {
         const serverSocket = net.connect(port || 443, hostname, () => {
             clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
             serverSocket.write(head);
-            clientSocket.pipe(serverSocket);
-            serverSocket.pipe(clientSocket);
+            rateLimitedPipe(clientSocket, serverSocket, () => getSpeedForIp(clientIp));
+            rateLimitedPipe(serverSocket, clientSocket, () => getSpeedForIp(clientIp));
         });
 
         const user = db.getUserByIp(clientIp);
@@ -554,8 +588,8 @@ const socksServer = net.createServer((clientSocket) => {
                 const serverSocket = net.connect(port, host, () => {
                     const reply = Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
                     clientSocket.write(reply);
-                    clientSocket.pipe(serverSocket);
-                    serverSocket.pipe(clientSocket);
+                    rateLimitedPipe(clientSocket, serverSocket, () => getSpeedForIp(clientIp));
+                    rateLimitedPipe(serverSocket, clientSocket, () => getSpeedForIp(clientIp));
                 });
 
                 const user = db.getUserByIp(clientIp);
@@ -633,7 +667,7 @@ function handleSocksUdpAssociation(clientSocket, clientIp) {
 
             if (message.length < portOffset + 2) return;
             const port = message.readUInt16BE(portOffset);
-            relay.send(message.subarray(portOffset + 2), port, host);
+            sendRateLimitedUdp(relay, message.subarray(portOffset + 2), port, host, () => getSpeedForIp(clientIp));
             return;
         }
 
@@ -645,7 +679,7 @@ function handleSocksUdpAssociation(clientSocket, clientIp) {
             ...octets,
             rinfo.port >> 8, rinfo.port & 0xff
         ]);
-        relay.send(Buffer.concat([header, message]), clientUdpPort, clientIp);
+        sendRateLimitedUdp(relay, Buffer.concat([header, message]), clientUdpPort, clientIp, () => getSpeedForIp(clientIp));
     });
 
     relay.bind(0, '0.0.0.0', () => {

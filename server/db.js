@@ -113,6 +113,8 @@ if (!data.settings.admin_password || data.settings.admin_password === 'admin123'
 const credPath = path.join(appDir, 'admin_credentials.txt');
 if (!data.settings.global_daily_limit_mb) data.settings.global_daily_limit_mb = 1024;
 if (!data.settings.global_weekly_limit_mb) data.settings.global_weekly_limit_mb = 7168;
+if (data.settings.global_speed_limit_bps === undefined) data.settings.global_speed_limit_bps = 0;
+if (data.settings.global_exhausted_speed_limit_bps === undefined) data.settings.global_exhausted_speed_limit_bps = 0;
 
 const getLocalDateString = () => {
     const d = new Date();
@@ -149,6 +151,8 @@ module.exports = {
                     current_ip: ip,
                     daily_limit_mb: default_limit,
                     weekly_limit_mb: default_limit * 7,
+                    speed_limit_bps: null,
+                    exhausted_speed_limit_bps: null,
                     status: 'active',
                     registered_at: getLocalDateString()
                 };
@@ -171,6 +175,7 @@ module.exports = {
     },
 
     getUserByDeviceId: (device_id) => data.users.find(u => u.device_id === device_id),
+    getUserById: (id) => data.users.find(u => u.id === parseInt(id)),
     
     getUserByIp: (ip) => data.users.find(u => u.current_ip === ip),
 
@@ -242,12 +247,14 @@ module.exports = {
         });
     },
 
-    updateUserSettings: (id, status, daily_limit_mb, weekly_limit_mb) => {
+    updateUserSettings: (id, status, daily_limit_mb, weekly_limit_mb, speed_limit_bps, exhausted_speed_limit_bps) => {
         let user = data.users.find(u => u.id === parseInt(id));
         if (user) {
             user.status = status;
             user.daily_limit_mb = parseInt(daily_limit_mb);
             if(weekly_limit_mb) user.weekly_limit_mb = parseInt(weekly_limit_mb);
+            if (speed_limit_bps !== undefined) user.speed_limit_bps = speed_limit_bps === null ? null : Math.max(0, Number(speed_limit_bps) || 0);
+            if (exhausted_speed_limit_bps !== undefined) user.exhausted_speed_limit_bps = exhausted_speed_limit_bps === null ? null : Math.max(0, Number(exhausted_speed_limit_bps) || 0);
             save();
             return true;
         }
@@ -297,12 +304,14 @@ module.exports = {
         save();
     },
 
-    updateGlobalLimit: (daily_limit, weekly_limit) => {
+    updateGlobalLimit: (daily_limit, weekly_limit, speed_limit_bps, exhausted_speed_limit_bps) => {
         const old_daily = data.settings.global_daily_limit_mb;
         const old_weekly = data.settings.global_weekly_limit_mb || (old_daily * 7);
         
         data.settings.global_daily_limit_mb = parseInt(daily_limit);
         data.settings.global_weekly_limit_mb = parseInt(weekly_limit);
+        if (speed_limit_bps !== undefined) data.settings.global_speed_limit_bps = Math.max(0, Number(speed_limit_bps) || 0);
+        if (exhausted_speed_limit_bps !== undefined) data.settings.global_exhausted_speed_limit_bps = Math.max(0, Number(exhausted_speed_limit_bps) || 0);
 
         // Apply to users who hadn't been manually customized
         data.users.forEach(u => {
@@ -319,6 +328,8 @@ module.exports = {
         if (user) {
             user.daily_limit_mb = data.settings.global_daily_limit_mb;
             user.weekly_limit_mb = data.settings.global_weekly_limit_mb || (data.settings.global_daily_limit_mb * 7);
+            user.speed_limit_bps = null;
+            user.exhausted_speed_limit_bps = null;
             save();
             return true;
         }
