@@ -89,17 +89,26 @@ jobs:
         working-directory: mobile_app
         run: flutter build apk --release
 
+      - name: Build Windows server executable
+        working-directory: server
+        run: |
+          npm ci
+          node build_bundle.js
+          npx --yes pkg@5.8.1 index.js --targets node18-win-x64 --output GigaLimit_Server.exe
+
       - name: Create Tag
         run: |
           TAG="v1.0.0-${{ github.run_number }}"
           git tag $TAG
           git push origin $TAG
 
-      - name: Release APK
+      - name: Release APK and server
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.0-${{ github.run_number }}
           name: "GigaLimit v1.0.0-${{ github.run_number }}"
-          files: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            mobile_app/build/app/outputs/flutter-apk/app-release.apk
+            server/GigaLimit_Server.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
