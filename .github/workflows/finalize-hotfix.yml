@@ -37,3 +37,5 @@ jobs:
           git diff --cached --check
           git commit -m "Finalize security hotfix"
           git push origin HEAD:agent/security-hotfix
+
+# Trigger after workflow registration.
