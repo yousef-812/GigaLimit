@@ -20,13 +20,25 @@ jobs:
 
       - name: Apply one-shot runtime security migration
         run: |
-          if [ -f tools/apply_runtime_security.py ]; then
-            python tools/apply_runtime_security.py
-          else
+          if [ ! -f tools/apply_runtime_security.py ]; then
             echo "Runtime security migration already applied"
+            exit 0
           fi
 
-      - name: Commit migrated sources
+          set +e
+          python tools/apply_runtime_security.py > /tmp/runtime-security.log 2>&1
+          STATUS=$?
+          set -e
+          cat /tmp/runtime-security.log
+
+          if [ "$STATUS" -ne 0 ]; then
+            git reset --hard HEAD
+            cp /tmp/runtime-security.log runtime_security_error.txt
+          else
+            rm -f runtime_security_error.txt
+          fi
+
+      - name: Commit migrated sources or diagnostic
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
