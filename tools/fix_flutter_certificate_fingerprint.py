@@ -39,3 +39,5 @@ source = source.replace(old_callback, new_callback, 1)
 
 path.write_text(source, encoding="utf-8")
 print("Flutter certificate fingerprint conversion fixed")
+
+# Trigger after workflow registration.
