@@ -7,14 +7,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 index_path = ROOT / "server/index.js"
 index = index_path.read_text(encoding="utf-8")
-index, count = re.subn(
-    r"fs\.writeFileSync\(rotationMarker, 'per-installation TLS key v2\s*'\);",
-    lambda _: "fs.writeFileSync(rotationMarker, 'per-installation TLS key v2\\n');",
-    index,
-    count=1,
-)
-if count != 1:
-    raise RuntimeError("Could not repair the TLS rotation marker string")
+valid_marker = "fs.writeFileSync(rotationMarker, 'per-installation TLS key v2\\n');"
+if valid_marker not in index:
+    index, count = re.subn(
+        r"fs\.writeFileSync\(rotationMarker, 'per-installation TLS key v2\s*'\);",
+        lambda _: valid_marker,
+        index,
+        count=1,
+    )
+    if count != 1:
+        raise RuntimeError("Could not repair the TLS rotation marker string")
 index_path.write_text(index, encoding="utf-8")
 
 main_path = ROOT / "mobile_app/lib/main.dart"
