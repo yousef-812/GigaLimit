@@ -18,26 +18,17 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Apply corrected migration
+      - name: Apply deterministic migration
         run: |
           set +e
-          if [ -f tools/fix_runtime_migration.py ]; then
-            python tools/fix_runtime_migration.py
-          fi
-
-          cp tools/apply_runtime_security.py /tmp/apply_runtime_security.py
-          python tools/apply_runtime_security.py > /tmp/runtime-security.log 2>&1
+          python tools/run_runtime_security.py > /tmp/runtime-security.log 2>&1
           STATUS=$?
           set -e
           cat /tmp/runtime-security.log
 
           if [ "$STATUS" -ne 0 ]; then
             git reset --hard HEAD
-            cp /tmp/apply_runtime_security.py tools/apply_runtime_security.py
-            rm -f tools/fix_runtime_migration.py
             cp /tmp/runtime-security.log runtime_security_error.txt
-          else
-            rm -f runtime_security_error.txt
           fi
 
       - name: Commit migration result
@@ -52,5 +43,3 @@ jobs:
           fi
           git commit -m "Harden runtime device and TLS security"
           git push origin HEAD:${{ github.head_ref }}
-
-# Corrected migration script is now persisted on the branch.
