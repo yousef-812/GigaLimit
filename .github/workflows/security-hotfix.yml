@@ -35,3 +35,5 @@ jobs:
           fi
           git commit -m "Apply security hotfix"
           git push origin HEAD:agent/security-hotfix
+
+# Triggered after the workflow existed on the branch.
