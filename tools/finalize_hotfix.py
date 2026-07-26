@@ -159,6 +159,8 @@ for relative in (
     ".github/workflows/runtime-migration.yml",
     "runtime_security_error.txt",
     "tools/apply_runtime_security.py",
+    "tools/run_runtime_security.py",
+    "tools/fix_post_migration.py",
     ".github/workflows/finalize-hotfix.yml",
 ):
     path = ROOT / relative
