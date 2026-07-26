@@ -105,3 +105,5 @@ jobs:
             server/GigaLimit_Server.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# One-shot trigger for release 37.
