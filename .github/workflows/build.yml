@@ -95,7 +95,18 @@ jobs:
 
       - name: Flutter analyze
         working-directory: mobile_app
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee flutter-analyze.log
+
+      - name: Upload Flutter analyzer diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-analyze-log
+          path: mobile_app/flutter-analyze.log
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Flutter tests
         working-directory: mobile_app
