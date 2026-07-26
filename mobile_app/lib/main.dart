@@ -30,12 +30,13 @@ Future<String> trustServerCertificate(String serverIp) async {
   socket.destroy();
   if (certificate == null) throw HandshakeException('Server certificate unavailable');
 
+  final fingerprint = base64Encode(certificate.sha1);
   final prefs = await SharedPreferences.getInstance();
-  await prefs.setString('server_cert_sha1', certificate.sha1);
+  await prefs.setString('server_cert_sha1', fingerprint);
   trustedServerCertificateSha1
     ..clear()
-    ..add(certificate.sha1);
-  return certificate.sha1;
+    ..add(fingerprint);
+  return fingerprint;
 }
 
 Future<void> initNotifications() async {
@@ -49,7 +50,7 @@ class MyHttpOverrides extends HttpOverrides {
   HttpClient createHttpClient(SecurityContext? context) {
     return super.createHttpClient(context)
       ..badCertificateCallback = (X509Certificate cert, String host, int port) {
-        return port == 3000 && trustedServerCertificateSha1.contains(cert.sha1);
+        return port == 3000 && trustedServerCertificateSha1.contains(base64Encode(cert.sha1));
       };
   }
 }
