@@ -1,0 +1,37 @@
+name: Apply Security Hotfix
+
+on:
+  push:
+    branches: [agent/security-hotfix]
+    paths:
+      - tools/apply_security_hotfix.py
+      - .github/workflows/security-hotfix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hotfix branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/security-hotfix
+          fetch-depth: 0
+
+      - name: Apply security patch
+        run: python tools/apply_security_hotfix.py
+
+      - name: Commit generated hotfix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Apply security hotfix"
+          git push origin HEAD:agent/security-hotfix
