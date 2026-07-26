@@ -618,8 +618,7 @@ function getSSL() {
         const certPem = forge.pki.certificateToPem(cert);
         fs.writeFileSync(keyPath, keyPem, { mode: 0o600 });
         fs.writeFileSync(certPath, certPem);
-        fs.writeFileSync(rotationMarker, 'per-installation TLS key v2
-');
+        fs.writeFileSync(rotationMarker, 'per-installation TLS key v2\n');
         console.log(`[SSL] Generated a unique self-signed certificate for IP: ${ip}`);
         return { key: keyPem, cert: certPem };
     } catch (error) {
