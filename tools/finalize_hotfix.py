@@ -9,7 +9,7 @@ index_path = ROOT / "server/index.js"
 index = index_path.read_text(encoding="utf-8")
 index, count = re.subn(
     r"fs\.writeFileSync\(rotationMarker, 'per-installation TLS key v2\s*'\);",
-    "fs.writeFileSync(rotationMarker, 'per-installation TLS key v2\\n');",
+    lambda _: "fs.writeFileSync(rotationMarker, 'per-installation TLS key v2\\n');",
     index,
     count=1,
 )
