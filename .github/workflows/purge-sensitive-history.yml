@@ -93,3 +93,5 @@ jobs:
             repo.git/filter-repo/commit-map
             repo.git/filter-repo/ref-map
           retention-days: 1
+
+# One-shot trigger: 2026-07-26
