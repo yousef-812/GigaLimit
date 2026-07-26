@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  apply-runtime-security:
+  prepare:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout working branch
@@ -18,41 +18,29 @@ jobs:
           ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
-      - name: Apply one-shot runtime security migration
+      - name: Apply pending repository fix
         run: |
-          if [ ! -f tools/apply_runtime_security.py ]; then
-            echo "Runtime security migration already applied"
-            exit 0
-          fi
-
-          set +e
-          python tools/apply_runtime_security.py > /tmp/runtime-security.log 2>&1
-          STATUS=$?
-          set -e
-          cat /tmp/runtime-security.log
-
-          if [ "$STATUS" -ne 0 ]; then
-            git reset --hard HEAD
-            cp /tmp/runtime-security.log runtime_security_error.txt
+          if [ -f tools/fix_post_migration.py ]; then
+            python tools/fix_post_migration.py
           else
-            rm -f runtime_security_error.txt
+            echo "No pending repository fix"
           fi
 
-      - name: Commit migrated sources or diagnostic
+      - name: Commit prepared sources
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo "No migration changes to commit"
+            echo "No preparation changes to commit"
             exit 0
           fi
-          git commit -m "Harden runtime device and TLS security"
+          git commit -m "Fix post-migration syntax"
           git push origin HEAD:${{ github.head_ref || github.ref_name }}
 
   build:
-    needs: apply-runtime-security
+    needs: prepare
     runs-on: ubuntu-latest
 
     steps:
