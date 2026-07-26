@@ -24,6 +24,8 @@ jobs:
           if [ -f tools/fix_runtime_migration.py ]; then
             python tools/fix_runtime_migration.py
           fi
+
+          cp tools/apply_runtime_security.py /tmp/apply_runtime_security.py
           python tools/apply_runtime_security.py > /tmp/runtime-security.log 2>&1
           STATUS=$?
           set -e
@@ -31,6 +33,8 @@ jobs:
 
           if [ "$STATUS" -ne 0 ]; then
             git reset --hard HEAD
+            cp /tmp/apply_runtime_security.py tools/apply_runtime_security.py
+            rm -f tools/fix_runtime_migration.py
             cp /tmp/runtime-security.log runtime_security_error.txt
           else
             rm -f runtime_security_error.txt
