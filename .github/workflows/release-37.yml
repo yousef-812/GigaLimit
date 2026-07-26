@@ -1,21 +1,17 @@
-name: Build and Test GigaLimit
+name: Build GigaLimit Release 37
 
 on:
-  pull_request:
+  push:
     branches: [main]
-  workflow_dispatch:
-
-concurrency:
-  group: gigalimit-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+    paths:
+      - .github/workflows/release-37.yml
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,26 +39,21 @@ jobs:
           accept-android-sdk-licenses: true
 
       - name: Install Android NDK
-        run: |
-          sdkmanager "ndk;27.2.12479018"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+        run: sdkmanager "ndk;27.2.12479018"
 
       - name: Install server dependencies
         working-directory: server
         run: npm ci
 
-      - name: Check server syntax
+      - name: Validate server
         working-directory: server
         run: |
           node --check index.js
           node --check db.js
           node --check build_bundle.js
+          node --test test/*.test.js
 
-      - name: Run server security tests
-        working-directory: server
-        run: node --test test/*.test.js
-
-      - name: Build tun2socks for arm64-v8a
+      - name: Build tun2socks arm64-v8a
         working-directory: mobile_app/tun2socks
         run: |
           export CGO_ENABLED=1 GOOS=android GOARCH=arm64
@@ -70,7 +61,7 @@ jobs:
           export CXX=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang++
           go build -v -buildmode=c-shared -o ../android/app/src/main/jniLibs/arm64-v8a/libtun2socks.so .
 
-      - name: Build tun2socks for armeabi-v7a
+      - name: Build tun2socks armeabi-v7a
         working-directory: mobile_app/tun2socks
         run: |
           export CGO_ENABLED=1 GOOS=android GOARCH=arm GOARM=7
@@ -78,7 +69,7 @@ jobs:
           export CXX=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi35-clang++
           go build -v -buildmode=c-shared -o ../android/app/src/main/jniLibs/armeabi-v7a/libtun2socks.so .
 
-      - name: Build tun2socks for x86_64
+      - name: Build tun2socks x86_64
         working-directory: mobile_app/tun2socks
         run: |
           export CGO_ENABLED=1 GOOS=android GOARCH=amd64
@@ -89,43 +80,12 @@ jobs:
       - name: Remove generated Go headers
         run: rm -f mobile_app/android/app/src/main/jniLibs/*/libtun2socks.h
 
-      - name: Flutter dependencies
-        working-directory: mobile_app
-        run: flutter pub get
-
-      - name: Flutter analyze
+      - name: Validate and build Android APK
         working-directory: mobile_app
         run: |
-          set -o pipefail
-          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee flutter-analyze.log
-
-      - name: Upload Flutter analyzer diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: flutter-analyze-log
-          path: mobile_app/flutter-analyze.log
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Flutter tests
-        working-directory: mobile_app
-        run: |
-          set -o pipefail
-          flutter test 2>&1 | tee flutter-test.log
-
-      - name: Upload Flutter test diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: flutter-test-log
-          path: mobile_app/flutter-test.log
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Build Android APK
-        working-directory: mobile_app
-        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test
           flutter build apk --release
           cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/GigaLimit_App.apk
 
@@ -133,19 +93,13 @@ jobs:
         working-directory: server
         run: npm run build:exe
 
-      - name: Create release tag
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          TAG="v1.0.0-${{ github.run_number }}"
-          git tag "$TAG"
-          git push origin "$TAG"
-
-      - name: Release matching server and app
-        if: github.event_name == 'workflow_dispatch'
+      - name: Create release 37
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0-${{ github.run_number }}
-          name: GigaLimit v1.0.0-${{ github.run_number }}
+          tag_name: v1.0.0-37
+          name: GigaLimit v1.0.0-37
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
           files: |
             mobile_app/build/app/outputs/flutter-apk/GigaLimit_App.apk
             server/GigaLimit_Server.exe
