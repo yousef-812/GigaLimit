@@ -27,6 +27,8 @@ server/vpn_debug.log
 server/GigaLimit_Server.exe
 server/server.key
 server/server.cert
+server/public_bundle.js
+server/ssl_key_version_2
 
 # IDE
 .vscode/
