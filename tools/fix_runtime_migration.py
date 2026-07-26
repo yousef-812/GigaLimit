@@ -15,5 +15,8 @@ replacement_index = text.index('    """try {', pattern_index)
 text = text[:replacement_index] + '    """const localIP = getLocalIP();\n\ntry {' + text[replacement_index + len('    """try {'):]
 
 path.write_text(text, encoding='utf-8')
+workflow = Path(__file__).resolve().parents[1] / '.github/workflows/runtime-migration.yml'
+if workflow.exists():
+    workflow.unlink()
 Path(__file__).unlink()
 print('Runtime migration matcher fixed')
