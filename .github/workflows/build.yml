@@ -110,7 +110,18 @@ jobs:
 
       - name: Flutter tests
         working-directory: mobile_app
-        run: flutter test
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee flutter-test.log
+
+      - name: Upload Flutter test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-test-log
+          path: mobile_app/flutter-test.log
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Build Android APK
         working-directory: mobile_app
