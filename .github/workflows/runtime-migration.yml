@@ -1,0 +1,50 @@
+name: Runtime Security Migration
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hotfix branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Apply corrected migration
+        run: |
+          set +e
+          if [ -f tools/fix_runtime_migration.py ]; then
+            python tools/fix_runtime_migration.py
+          fi
+          python tools/apply_runtime_security.py > /tmp/runtime-security.log 2>&1
+          STATUS=$?
+          set -e
+          cat /tmp/runtime-security.log
+
+          if [ "$STATUS" -ne 0 ]; then
+            git reset --hard HEAD
+            cp /tmp/runtime-security.log runtime_security_error.txt
+          else
+            rm -f runtime_security_error.txt
+          fi
+
+      - name: Commit migration result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No migration changes to commit"
+            exit 0
+          fi
+          git commit -m "Harden runtime device and TLS security"
+          git push origin HEAD:${{ github.head_ref }}
