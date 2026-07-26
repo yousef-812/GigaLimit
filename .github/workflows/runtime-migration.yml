@@ -52,3 +52,5 @@ jobs:
           fi
           git commit -m "Harden runtime device and TLS security"
           git push origin HEAD:${{ github.head_ref }}
+
+# Corrected migration script is now persisted on the branch.
