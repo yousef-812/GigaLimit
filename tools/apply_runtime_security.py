@@ -329,8 +329,10 @@ const localIP""",
 
 sub_once(
     "server/index.js",
-    r"try \{\n    const https = require\('https'\);.*?\n\}\n\nproxyServer\.listen",
-    """try {
+    r"const localIP = getLocalIP\(\);.*?\nproxyServer\.listen",
+    """const localIP = getLocalIP();
+
+try {
     const https = require('https');
     const ssl = getSSL();
     if (!ssl) throw new Error('TLS certificate unavailable');
@@ -640,17 +642,23 @@ vpn = vpn.replace(
     "    private fun reportPhysicalIp(serverIp: String, deviceId: String, deviceToken: String, logSuccess: Boolean = true) {",
 )
 vpn = re.sub(
-    r"(\s+)val body = \"\{\\\"device_id\\\":\\\"\$\{deviceId\.replace.*?\n\s+val request = \"POST /api/network_ping HTTP/1\.1\\r\\n\" \+",
-    r'''\1val body = "{\\"device_id\\":\\"${deviceId.replace("\\", "\\\\").replace("\\"", "\\\\\\"")}\\"}"
-\1val timestamp = System.currentTimeMillis().toString()
-\1val mac = Mac.getInstance("HmacSHA256")
-\1mac.init(SecretKeySpec(deviceToken.toByteArray(Charsets.UTF_8), "HmacSHA256"))
-\1val signature = mac.doFinal("$deviceId:$timestamp".toByteArray(Charsets.UTF_8))
-\1    .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
-\1val request = "POST /api/network_ping HTTP/1.1\\r\\n" +''',
+    r'(\s+val body = [^\n]+\n)(\s+val request = "POST /api/network_ping HTTP/1\.1\\r\\n" \+)',
+    lambda match: (
+        match.group(1)
+        + match.group(2).split('val request', 1)[0]
+        + 'val timestamp = System.currentTimeMillis().toString()\n'
+        + match.group(2).split('val request', 1)[0]
+        + 'val mac = Mac.getInstance("HmacSHA256")\n'
+        + match.group(2).split('val request', 1)[0]
+        + 'mac.init(SecretKeySpec(deviceToken.toByteArray(Charsets.UTF_8), "HmacSHA256"))\n'
+        + match.group(2).split('val request', 1)[0]
+        + 'val signature = mac.doFinal("$deviceId:$timestamp".toByteArray(Charsets.UTF_8))\n'
+        + match.group(2).split('val request', 1)[0]
+        + '    .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }\n'
+        + match.group(2)
+    ),
     vpn,
     count=1,
-    flags=re.DOTALL,
 )
 vpn = vpn.replace(
     "                         \"Content-Type: application/json\\r\\n\" +\n                         \"Content-Length: ${body.toByteArray().size}\\r\\n\" +",
