@@ -219,10 +219,8 @@ app.post('/api/debug', (req, res) => {
 
     const prefix = `${new Date().toISOString()} [${user.name} #${user.id}]`;
     const lines = logs.slice(-100)
-        .map(log => `${prefix} ${String(log).replace(/[
-]/g, ' ').slice(0, 2000)}`)
-        .join('
-');
+        .map(log => `${prefix} ${String(log).replace(/[\r\n]/g, ' ').slice(0, 2000)}`)
+        .join('\n');
     appendDebugLog(lines);
     res.json({ success: true });
 });

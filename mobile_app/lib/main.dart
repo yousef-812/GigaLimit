@@ -28,7 +28,7 @@ Future<String> trustServerCertificate(String serverIp) async {
   ).timeout(const Duration(seconds: 8));
   final certificate = socket.peerCertificate;
   socket.destroy();
-  if (certificate == null) throw const HandshakeException('Server certificate unavailable');
+  if (certificate == null) throw HandshakeException('Server certificate unavailable');
 
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('server_cert_sha1', certificate.sha1);
