@@ -21,6 +21,8 @@ import java.util.ArrayDeque
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 class VpnProxyService : VpnService() {
 
@@ -107,12 +109,17 @@ class VpnProxyService : VpnService() {
             stopSelf()
             return START_NOT_STICKY
         }
+        val deviceToken = intent.getStringExtra("device_token") ?: run {
+            addDebug("VPN start rejected: missing device token")
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
-        startVpn(serverIp, deviceId)
+        startVpn(serverIp, deviceId, deviceToken)
         return START_STICKY
     }
 
-    private fun startVpn(serverIp: String, deviceId: String) {
+    private fun startVpn(serverIp: String, deviceId: String, deviceToken: String) {
         addDebug("VPN start requested for $serverIp:1080")
         if (!nativeLibraryLoaded) {
             Log.e(TAG, "libtun2socks.so is missing from this APK")
@@ -154,13 +161,13 @@ class VpnProxyService : VpnService() {
         acquireWakeLock()
         isRunning = true
         addDebug("VPN interface established")
-        reportPhysicalIp(serverIp, deviceId)
-        monitorNetworkChanges(serverIp, deviceId)
-        startIpReporter(serverIp, deviceId)
+        reportPhysicalIp(serverIp, deviceId, deviceToken)
+        monitorNetworkChanges(serverIp, deviceId, deviceToken)
+        startIpReporter(serverIp, deviceId, deviceToken)
         startTun2socks(serverIp)
     }
 
-    private fun reportPhysicalIp(serverIp: String, deviceId: String, logSuccess: Boolean = true) {
+    private fun reportPhysicalIp(serverIp: String, deviceId: String, deviceToken: String, logSuccess: Boolean = true) {
         Thread({
             try {
                 if (!isRunning) return@Thread
@@ -174,9 +181,16 @@ class VpnProxyService : VpnService() {
                     }
                     socket.connect(InetSocketAddress(serverIp, 3001), 5000)
                     val body = "{\"device_id\":\"${deviceId.replace("\\", "\\\\").replace("\"", "\\\"")}\"}"
+                    val timestamp = System.currentTimeMillis().toString()
+                    val mac = Mac.getInstance("HmacSHA256")
+                    mac.init(SecretKeySpec(deviceToken.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+                    val signature = mac.doFinal("$deviceId:$timestamp".toByteArray(Charsets.UTF_8))
+                        .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
                     val request = "POST /api/network_ping HTTP/1.1\r\n" +
                         "Host: $serverIp\r\n" +
                         "Content-Type: application/json\r\n" +
+                        "X-Device-Timestamp: $timestamp\r\n" +
+                        "X-Device-Signature: $signature\r\n" +
                         "Content-Length: ${body.toByteArray().size}\r\n" +
                         "Connection: close\r\n\r\n$body"
                     socket.getOutputStream().write(request.toByteArray())
@@ -194,11 +208,11 @@ class VpnProxyService : VpnService() {
         }, "physical-ip-report").start()
     }
 
-    private fun startIpReporter(serverIp: String, deviceId: String) {
+    private fun startIpReporter(serverIp: String, deviceId: String, deviceToken: String) {
         ipReporter?.shutdownNow()
         ipReporter = Executors.newSingleThreadScheduledExecutor().also { executor ->
             executor.scheduleWithFixedDelay(
-                { reportPhysicalIp(serverIp, deviceId, logSuccess = false) },
+                { reportPhysicalIp(serverIp, deviceId, deviceToken, logSuccess = false) },
                 3,
                 3,
                 TimeUnit.SECONDS
@@ -207,17 +221,17 @@ class VpnProxyService : VpnService() {
         addDebug("Background physical IP monitor started")
     }
 
-    private fun monitorNetworkChanges(serverIp: String, deviceId: String) {
+    private fun monitorNetworkChanges(serverIp: String, deviceId: String, deviceToken: String) {
         val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 addDebug("Physical network became available")
-                reportPhysicalIp(serverIp, deviceId)
+                reportPhysicalIp(serverIp, deviceId, deviceToken)
             }
 
             override fun onLinkPropertiesChanged(network: Network, linkProperties: android.net.LinkProperties) {
                 addDebug("Physical network properties changed")
-                reportPhysicalIp(serverIp, deviceId)
+                reportPhysicalIp(serverIp, deviceId, deviceToken)
             }
         }
         try {

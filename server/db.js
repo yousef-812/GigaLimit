@@ -13,6 +13,8 @@ const generatePassword = () => {
     return crypto.randomBytes(6).toString('base64url');
 };
 
+const generateDeviceToken = () => crypto.randomBytes(32).toString('base64url');
+
 const emptyData = {
     settings: {},
     users: [], // { id, name, device_id, current_ip, status, daily_limit_mb }
@@ -137,7 +139,7 @@ module.exports = {
     registerUser: (name, device_id, ip, default_limit) => {
         let user = data.users.find(u => u.device_id === device_id);
         if (!user) {
-            let existingIpUser = data.users.find(u => u.current_ip === ip);
+            const existingIpUser = data.users.find(u => u.current_ip === ip && !u.device_id);
             if (existingIpUser) {
                 existingIpUser.device_id = device_id;
                 if (name) existingIpUser.name = name;
@@ -148,6 +150,7 @@ module.exports = {
                     id: maxId + 1,
                     name,
                     device_id,
+                    device_token: generateDeviceToken(),
                     current_ip: ip,
                     daily_limit_mb: default_limit,
                     weekly_limit_mb: default_limit * 7,
@@ -162,6 +165,7 @@ module.exports = {
             user.current_ip = ip;
             if (name) user.name = name;
         }
+        if (!user.device_token) user.device_token = generateDeviceToken();
         save();
         return user;
     },
@@ -175,6 +179,13 @@ module.exports = {
     },
 
     getUserByDeviceId: (device_id) => data.users.find(u => u.device_id === device_id),
+    verifyDeviceToken: (device_id, token) => {
+        const user = data.users.find(u => u.device_id === device_id);
+        if (!user || !user.device_token || typeof token !== 'string') return false;
+        const expected = Buffer.from(user.device_token);
+        const supplied = Buffer.from(token);
+        return expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
+    },
     getUserById: (id) => data.users.find(u => u.id === parseInt(id)),
     
     getUserByIp: (ip) => data.users.find(u => u.current_ip === ip),

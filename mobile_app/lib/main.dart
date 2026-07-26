@@ -10,6 +10,33 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/services.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+final Set<String> trustedServerCertificateSha1 = <String>{};
+
+Future<void> loadTrustedServerCertificate() async {
+  final prefs = await SharedPreferences.getInstance();
+  final fingerprint = prefs.getString('server_cert_sha1');
+  if (fingerprint != null && fingerprint.isNotEmpty) {
+    trustedServerCertificateSha1.add(fingerprint);
+  }
+}
+
+Future<String> trustServerCertificate(String serverIp) async {
+  final socket = await SecureSocket.connect(
+    serverIp,
+    3000,
+    onBadCertificate: (_) => true,
+  ).timeout(const Duration(seconds: 8));
+  final certificate = socket.peerCertificate;
+  socket.destroy();
+  if (certificate == null) throw const HandshakeException('Server certificate unavailable');
+
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('server_cert_sha1', certificate.sha1);
+  trustedServerCertificateSha1
+    ..clear()
+    ..add(certificate.sha1);
+  return certificate.sha1;
+}
 
 Future<void> initNotifications() async {
   const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
@@ -21,12 +48,15 @@ class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) {
+        return port == 3000 && trustedServerCertificateSha1.contains(cert.sha1);
+      };
   }
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await loadTrustedServerCertificate();
   HttpOverrides.global = MyHttpOverrides();
   await initNotifications();
   runApp(const GigaLimitApp());
@@ -69,9 +99,19 @@ class _BootScreenState extends State<BootScreen> {
   Future<void> _checkRegistration() async {
     final prefs = await SharedPreferences.getInstance();
     final deviceId = prefs.getString('device_id');
-    
+    final serverIp = prefs.getString('server_ip');
+
+    if (deviceId != null && deviceId.isNotEmpty &&
+        trustedServerCertificateSha1.isEmpty && serverIp != null && serverIp.isNotEmpty) {
+      try {
+        await trustServerCertificate(serverIp);
+      } catch (_) {
+        // Never replace an existing pin silently.
+      }
+    }
+
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     if (!mounted) return;
     if (deviceId != null && deviceId.isNotEmpty) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
@@ -108,11 +148,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Future<void> _register() async {
     if (_nameController.text.isEmpty || _ipController.text.isEmpty) return;
     setState(() => _isLoading = true);
-    
+
     final deviceId = _generateDeviceId();
     final serverIp = _ipController.text.trim();
-    
+
     try {
+      await trustServerCertificate(serverIp);
       final res = await http.post(
         Uri.parse('https://$serverIp:3000/api/register'),
         headers: {'Content-Type': 'application/json'},
@@ -120,18 +161,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       );
 
       if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final token = data['device_token'] as String?;
+        if (token == null || token.isEmpty) throw const FormatException('Missing device token');
+
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('user_name', _nameController.text);
         await prefs.setString('device_id', deviceId);
+        await prefs.setString('device_token', token);
         await prefs.setString('server_ip', serverIp);
-        
+
         if (!mounted) return;
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
       } else {
         _showError('فشل تسجيل الجهاز: ${res.body}');
       }
-    } catch (e) {
-      _showError('تعذر الاتصال بالسيرفر على $serverIp');
+    } catch (_) {
+      _showError('تعذر إنشاء اتصال آمن بالسيرفر على $serverIp');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -191,6 +237,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String userName = "مستخدم";
   String serverIp = "";
   String deviceId = "";
+  String deviceToken = "";
   Map<String, dynamic> stats = {
     'usage_today_bytes': 0,
     'weekly_usage_bytes': 0,
@@ -237,7 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (logs == null || logs.isEmpty) return;
       await http.post(
         Uri.parse('https://$serverIp:3000/api/debug'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-Device-Token': deviceToken},
         body: jsonEncode({'device_id': deviceId, 'logs': logs}),
       );
     } catch (_) {
@@ -258,6 +305,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         await _vpnChannel.invokeMethod('startVpn', {
           'server_ip': serverIp,
           'device_id': deviceId,
+          'device_token': deviceToken,
         });
         if (mounted) setState(() => _vpnConnected = true);
       } catch (e) {
@@ -285,12 +333,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _pingServer() async {
-    if (serverIp.isEmpty || deviceId.isEmpty) return;
+    if (serverIp.isEmpty || deviceId.isEmpty || deviceToken.isEmpty) return;
     try {
-      await http.post(
-        Uri.parse('https://$serverIp:3000/api/ping'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'device_id': deviceId}),
+      await http.get(
+        Uri.parse('https://$serverIp:3000/api/status/$deviceId'),
+        headers: {'X-Device-Token': deviceToken},
       );
     } catch (e) {
       print('Ping failed: $e');
@@ -336,16 +383,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
       userName = prefs.getString('user_name') ?? 'مستخدم';
       serverIp = prefs.getString('server_ip') ?? '';
       deviceId = prefs.getString('device_id') ?? '';
+      deviceToken = prefs.getString('device_token') ?? '';
     });
+
+    if (deviceToken.isEmpty) await _refreshDeviceToken();
     _fetchStats();
     _pingServer();
     _flushVpnDebug();
   }
 
+  Future<void> _refreshDeviceToken() async {
+    if (serverIp.isEmpty || deviceId.isEmpty) return;
+    try {
+      final res = await http.post(
+        Uri.parse('https://$serverIp:3000/api/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'device_id': deviceId,
+          'name': userName,
+          'legacy_migration': true,
+          if (deviceToken.isNotEmpty) 'device_token': deviceToken,
+        }),
+      );
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final token = data['device_token'] as String?;
+      if (token == null || token.isEmpty) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('device_token', token);
+      if (mounted) setState(() => deviceToken = token);
+    } catch (_) {}
+  }
+
   Future<void> _fetchStats() async {
     if (serverIp.isEmpty) return;
     try {
-      final res = await http.get(Uri.parse('https://$serverIp:3000/api/status/$deviceId'));
+      final res = await http.get(
+        Uri.parse('https://$serverIp:3000/api/status/$deviceId'),
+        headers: {'X-Device-Token': deviceToken},
+      );
       if (res.statusCode == 200) {
         setState(() {
           final data = jsonDecode(res.body);
@@ -363,7 +439,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _showNotification('رسالة من الإدارة 📩', data['pending_notification']);
             http.post(
               Uri.parse('https://$serverIp:3000/api/clear_notification'),
-              headers: {'Content-Type': 'application/json'},
+              headers: {'Content-Type': 'application/json', 'X-Device-Token': deviceToken},
               body: jsonEncode({'device_id': deviceId})
             );
           }
