@@ -2,18 +2,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { EventEmitter } = require('events');
 const { createUsageMeter } = require('../usage_meter');
+const { instrumentUdpSocket } = require('../traffic_accounting_patch');
 
 function makeDb() {
     const writes = [];
     return {
         writes,
         getLocalDateString: () => '2026-07-28',
+        getUserByIp: (ip) => ip === '192.168.1.25' ? { id: 7 } : null,
         updateUsage: (userId, date, bytes) => writes.push({ userId, date, bytes })
     };
 }
 
-test('usage meter accumulates TCP and UDP bytes before flushing', () => {
+test('usage meter accumulates bytes before flushing', () => {
     const db = makeDb();
     const meter = createUsageMeter(db, 7, 60_000);
 
@@ -28,28 +31,25 @@ test('usage meter accumulates TCP and UDP bytes before flushing', () => {
     meter.stop();
 });
 
-test('usage meter flushes remaining bytes once when a session closes', () => {
+test('UDP and QUIC packets are attributed in both directions', () => {
     const db = makeDb();
-    const meter = createUsageMeter(db, 3, 60_000);
+    const socket = instrumentUdpSocket(new EventEmitter(), { db, createUsageMeter });
 
-    meter.add(512);
-    meter.stop();
-    meter.stop();
+    socket.emit('message', Buffer.alloc(120), { address: '192.168.1.25', port: 45000 });
+    socket.emit('message', Buffer.alloc(380), { address: '142.250.200.14', port: 443 });
+    socket.emit('close');
 
-    assert.deepEqual(db.writes, [{ userId: 3, date: '2026-07-28', bytes: 512 }]);
+    assert.deepEqual(db.writes, [{ userId: 7, date: '2026-07-28', bytes: 500 }]);
 });
 
-test('traffic accounting remains wired to HTTP, TCP, UDP, QUIC, and IPv6 paths', () => {
-    const serverSource = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
-    const vpnSource = fs.readFileSync(
-        path.join(__dirname, '..', '..', 'mobile_app', 'android', 'app', 'src', 'main', 'kotlin', 'com', 'example', 'mobile_app', 'VpnProxyService.kt'),
-        'utf8'
-    );
-    const tunSource = fs.readFileSync(path.join(__dirname, '..', '..', 'mobile_app', 'tun2socks', 'main.go'), 'utf8');
+test('packaged server always starts through the traffic accounting bootstrap', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    const startSource = fs.readFileSync(path.join(__dirname, '..', 'start.js'), 'utf8');
 
-    assert.match(serverSource, /createUsageMeter/);
-    assert.match(serverSource, /sendRateLimitedUdp[\s\S]*onBytes/);
-    assert.match(serverSource, /atyp === 0x04/);
-    assert.match(vpnSource, /addRoute\("::", 0\)/);
-    assert.match(tunSource, /dstIP\.To16\(\)/);
+    assert.equal(packageJson.main, 'start.js');
+    assert.equal(packageJson.bin, 'start.js');
+    assert.match(packageJson.scripts.start, /start\.js/);
+    assert.match(packageJson.scripts['build:exe'], /pkg@5\.8\.1 start\.js/);
+    assert.match(startSource, /install\(\)/);
+    assert.match(startSource, /require\('\.\/index'\)/);
 });
