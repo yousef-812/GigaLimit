@@ -151,4 +151,6 @@ jobs:
           remaining_tags=$(git ls-remote --tags origin | grep -v '\^{}' | wc -l | tr -d ' ')
           test "$remaining_releases" = "1"
           test "$remaining_tags" = "1"
-          gh release view "$KEEP_TAG" --json tagName,isLatest,assets --jq '{tag: .tagName, latest: .isLatest, assets: [.assets[].name]}'
+          gh release view "$KEEP_TAG" --json tagName,assets --jq '{tag: .tagName, assets: [.assets[].name]}'
+
+# One-shot trigger for release 38.
