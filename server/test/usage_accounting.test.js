@@ -50,6 +50,7 @@ test('packaged server always starts through the traffic accounting bootstrap', (
     assert.equal(packageJson.bin, 'start.js');
     assert.match(packageJson.scripts.start, /start\.js/);
     assert.match(packageJson.scripts['build:exe'], /pkg@5\.8\.1 start\.js/);
-    assert.match(startSource, /install\(\)/);
+    assert.match(startSource, /installUdpSocketSafety\(\)/);
+    assert.match(startSource, /installTrafficAccounting\(\)/);
     assert.match(startSource, /require\('\.\/index'\)/);
 });
