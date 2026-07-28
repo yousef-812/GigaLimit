@@ -1,5 +1,4 @@
 const dgram = require('dgram');
-const db = require('./db');
 const { createUsageMeter } = require('./usage_meter');
 
 let installed = false;
@@ -11,7 +10,7 @@ const normalizeIp = (ip = '') => {
 };
 
 function instrumentUdpSocket(socket, dependencies = {}) {
-    const database = dependencies.db || db;
+    const database = dependencies.db || require('./db');
     const meterFactory = dependencies.createUsageMeter || createUsageMeter;
     const originalEmit = socket.emit;
     let usageMeter = null;
