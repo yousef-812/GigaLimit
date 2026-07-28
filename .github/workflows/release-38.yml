@@ -1,0 +1,154 @@
+name: Build GigaLimit Release 38
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release-38.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gigalimit-release-38
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.2.12479018"
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Validate server
+        working-directory: server
+        run: |
+          node --check start.js
+          node --check index.js
+          node --check db.js
+          node --check build_bundle.js
+          node --check traffic_accounting_patch.js
+          node --check udp_socket_safety.js
+          node --check usage_meter.js
+          node --test test/*.test.js
+
+      - name: Build tun2socks arm64-v8a
+        working-directory: mobile_app/tun2socks
+        run: |
+          export CGO_ENABLED=1 GOOS=android GOARCH=arm64
+          export CC=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang
+          export CXX=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang++
+          go build -v -buildmode=c-shared -o ../android/app/src/main/jniLibs/arm64-v8a/libtun2socks.so .
+
+      - name: Build tun2socks armeabi-v7a
+        working-directory: mobile_app/tun2socks
+        run: |
+          export CGO_ENABLED=1 GOOS=android GOARCH=arm GOARM=7
+          export CC=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi35-clang
+          export CXX=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi35-clang++
+          go build -v -buildmode=c-shared -o ../android/app/src/main/jniLibs/armeabi-v7a/libtun2socks.so .
+
+      - name: Build tun2socks x86_64
+        working-directory: mobile_app/tun2socks
+        run: |
+          export CGO_ENABLED=1 GOOS=android GOARCH=amd64
+          export CC=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android35-clang
+          export CXX=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android35-clang++
+          go build -v -buildmode=c-shared -o ../android/app/src/main/jniLibs/x86_64/libtun2socks.so .
+
+      - name: Remove generated Go headers
+        run: rm -f mobile_app/android/app/src/main/jniLibs/*/libtun2socks.h
+
+      - name: Validate and build Android APK 38
+        working-directory: mobile_app
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test
+          flutter build apk --release --build-name=1.0.0 --build-number=38
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/GigaLimit_App.apk
+
+      - name: Build Windows server executable
+        working-directory: server
+        run: npm run build:exe
+
+      - name: Remove any partial release 38
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete v1.0.0-38 --yes --cleanup-tag || true
+
+      - name: Create release 38
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-38
+          name: GigaLimit v1.0.0-38
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            mobile_app/build/app/outputs/flutter-apk/GigaLimit_App.apk
+            server/GigaLimit_Server.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete every older release and tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEEP_TAG="v1.0.0-38"
+
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
+            --jq '.[] | [.id, .tag_name] | @tsv' |
+          while IFS=$'\t' read -r release_id tag_name; do
+            if [[ -n "$release_id" && "$tag_name" != "$KEEP_TAG" ]]; then
+              echo "Deleting release $tag_name"
+              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
+            fi
+          done
+
+          git fetch --tags --force
+          while IFS= read -r tag_name; do
+            if [[ -n "$tag_name" && "$tag_name" != "$KEEP_TAG" ]]; then
+              echo "Deleting tag $tag_name"
+              git push origin ":refs/tags/${tag_name}"
+            fi
+          done < <(git tag --list)
+
+          remaining_releases=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq 'length')
+          remaining_tags=$(git ls-remote --tags origin | grep -v '\^{}' | wc -l | tr -d ' ')
+          test "$remaining_releases" = "1"
+          test "$remaining_tags" = "1"
+          gh release view "$KEEP_TAG" --json tagName,isLatest,assets --jq '{tag: .tagName, latest: .isLatest, assets: [.assets[].name]}'
