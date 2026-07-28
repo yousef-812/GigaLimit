@@ -44,3 +44,5 @@ jobs:
           git add server/index.js server/usage_meter.js server/test/usage_accounting.test.js mobile_app/android/app/src/main/kotlin/com/example/mobile_app/VpnProxyService.kt mobile_app/tun2socks/main.go
           git commit -m "Fix usage accounting across UDP, QUIC, and IPv6"
           git push origin HEAD:agent/fix-usage-accounting
+
+# One-shot trigger: usage accounting repair
